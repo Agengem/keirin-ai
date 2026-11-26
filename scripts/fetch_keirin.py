@@ -9,15 +9,15 @@ JST = timezone(timedelta(hours=9))
 now_jst = datetime.now(JST)
 
 VENUES = {
-    "函館": 11, "青森": 12, "いわき平": 13, "弥彦": 21, "前橋": 22,
-    "取手": 23, "宇都宮": 24, "大宮": 25, "西武園": 26, "京王閣": 27,
-    "立川": 28, "松戸": 31, "千葉": 32, "川崎": 34, "平塚": 35,
-    "小田原": 36, "伊東": 37, "静岡": 38, "名古屋": 42, "岐阜": 43,
-    "大垣": 44, "豊橋": 45, "富山": 46, "松阪": 47, "四日市": 48,
-    "福井": 51, "奈良": 53, "向日町": 54, "和歌山": 55, "岸和田": 56,
-    "玉野": 61, "広島": 62, "防府": 63, "高松": 71, "小松島": 73,
-    "高知": 74, "松山": 75, "小倉": 81, "久留米": 83, "武雄": 84,
-    "佐世保": 85, "別府": 86, "熊本": 87
+    "11": "函館", "12": "青森", "13": "いわき平", "21": "弥彦", "22": "前橋",
+    "23": "取手", "24": "宇都宮", "25": "大宮", "26": "西武園", "27": "京王閣",
+    "28": "立川", "31": "松戸", "32": "千葉", "34": "川崎", "35": "平塚",
+    "36": "小田原", "37": "伊東", "38": "静岡", "42": "名古屋", "43": "岐阜",
+    "44": "大垣", "45": "豊橋", "46": "富山", "47": "松阪", "48": "四日市",
+    "51": "福井", "53": "奈良", "54": "向日町", "55": "和歌山", "56": "岸和田",
+    "61": "玉野", "62": "広島", "63": "防府", "71": "高松", "73": "小松島",
+    "74": "高知", "75": "松山", "81": "小倉", "83": "久留米", "84": "武雄",
+    "85": "佐世保", "86": "別府", "87": "熊本"
 }
 
 def fetch_html(url):
@@ -127,35 +127,65 @@ def scrape_kdreams(target_dt, suffix):
     top_url = "https://keirin.kdreams.jp/racecard/"
     top_html = fetch_html(top_url)
 
-    # 開催場ページ（/venue/racecard/YYYYMMDD.../）をすべて収集
-    venue_pages = set()
+    # 1. トップから全開催場・全レースのリンク候補を広く収集
+    candidate_pages = set()
     for h in re.findall(r'href=["\']([^"\']+)["\']', top_html):
         if "/racecard/" in h:
-            full = urljoin(top_url, h).split("#")[0].split("?")[0]
-            if re.search(r'/[a-z]+/racecard/\d{8,14}/?$', full):
-                venue_pages.add(full)
+            full = urljoin(top_url, h).split("#")[0]
+            if re.search(r'/racecard/\d{8,18}', full):
+                candidate_pages.add(full)
 
-    # 各開催場ページからその日の全レース（1R〜12R）のURLを収集
+    # 2. 各開催ページを開き、その日の全レース（1R〜12R）のURLをすべて展開
     race_urls = set()
-    for vp in sorted(list(venue_pages)):
-        vh = fetch_html(vp)
-        for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
+    for cp in sorted(list(candidate_pages)):
+        if date_str in cp and re.search(r'/racecard/\d{14,18}/?$', cp):
+            race_urls.add(cp)
+        ch = fetch_html(cp)
+        for h in re.findall(r'href=["\']([^"\']+)["\']', ch):
             if "/racecard/" in h:
-                full_r = urljoin(vp, h).split("#")[0].split("?")[0]
-                if date_str in full_r and re.search(r'/racecard/\d{12,16}/?$', full_r):
+                full_r = urljoin(cp, h).split("#")[0]
+                if date_str in full_r and re.search(r'/racecard/\d{12,18}/?$', full_r):
                     race_urls.add(full_r)
 
-    for r_url in sorted(list(race_urls))[:80]:
+    # 3. 見つかったベースIDから1R〜12Rまで確実に補完
+    base_prefixes = set()
+    for ru in list(race_urls):
+        m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{12,14})\d{2}/?$', ru)
+        if m:
+            base_prefixes.add(m.group(1))
+    for bp in base_prefixes:
+        for r_no in range(1, 13):
+            race_urls.add(f"{bp}{r_no:02d}/")
+
+    seen_keys = set()
+    for r_url in sorted(list(race_urls)):
         r_html = fetch_html(r_url)
+        if not r_html:
+            continue
         title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
         title = re.sub(r'\s+', ' ', title_m.group(1)) if title_m else ""
-        venue_name = next((v for v in VENUES.keys() if v in title), "競輪")
-        rnum_m = re.search(r'(\d{1,2})R', title)
+        if disp_date not in title and date_str not in r_url:
+            continue
+
+        venue_name = next((v for v in VENUES.values() if v in title), None)
+        if not venue_name:
+            m_code = re.search(r'/racecard/(\d{2})\d{8,}', r_url)
+            if m_code:
+                venue_name = VENUES.get(m_code.group(1), "競輪")
+            else:
+                venue_name = "競輪"
+
+        rnum_m = re.search(r'(\d{1,2})R', title) or re.search(r'(\d{2})/?$', r_url)
         race_num = int(rnum_m.group(1)) if rnum_m else 1
+        key = f"{venue_name}_{race_num}"
+        if key in seen_keys:
+            continue
+
         players, lines = parse_players(r_html)
         if len(players) >= 5:
+            seen_keys.add(key)
             races.append({
-                "id": f"{suffix}_{venue_name}_{race_num}_{len(races)}",
+                "id": f"{suffix}_{venue_name}_{race_num}",
                 "date": disp_date,
                 "venue": venue_name,
                 "raceNum": race_num,
