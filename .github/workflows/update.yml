@@ -1,0 +1,32 @@
+name: Auto Fetch Keirin Data
+
+on:
+  schedule:
+    - cron: '0 22 * * *'
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Keirin Scraper
+        run: python scripts/fetch_keirin.py
+
+      - name: Commit and push updated JSON
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add data/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update keirin races" && git push)
