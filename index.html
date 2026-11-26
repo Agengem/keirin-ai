@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="競輪AI予想" />
+  <title>KEIRIN AI PREDICTOR AUTO</title>
+  <style>
+    :root {
+      --bg: #070b14;
+      --card: #111827;
+      --card2: #182234;
+      --border: #24324a;
+      --text: #f3f6fb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --honmei: #3b82f6;
+      --ana: #ef4444;
+      --ok: #10b981;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+      padding-bottom: 48px;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 10px; }
+    .top-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+    }
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .brand { font-weight: 800; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+    .badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #1e293b; color: var(--accent); }
+    .btn {
+      background: var(--card2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn.active { background: var(--accent); color: #051018; border-color: var(--accent); }
+    .btn.honmei-active { background: var(--honmei); color: #fff; border-color: var(--honmei); }
+    .btn.ana-active { background: var(--ana); color: #fff; border-color: var(--ana); }
+    .collapse-body.hidden { display: none; }
+    .controls-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    select, input[type="number"], input[type="text"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+    }
+    .stat-label { font-size: 10px; color: var(--muted); }
+    .stat-val { font-size: 15px; font-weight: 800; margin-top: 2px; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    @media (min-width: 760px) {
+      .two-col { grid-template-columns: 1fr 1fr; }
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .panel.honmei { border-top: 3px solid var(--honmei); }
+    .panel.ana { border-top: 3px solid var(--ana); }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+    .bet-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 8px;
+      margin-bottom: 6px;
+    }
+    .balls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .ball {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: #fff; background: #334155;
+    }
+    .c1 { background: #e2e8f0; color: #0f172a; }
+    .c2 { background: #1e293b; border: 1px solid #64748b; }
+    .c3 { background: #dc2626; }
+    .c4 { background: #2563eb; }
+    .c5 { background: #eab308; color: #0f172a; }
+    .c6 { background: #16a34a; }
+    .c7 { background: #ea580c; }
+    .c8 { background: #db2777; }
+    .c9 { background: #7c3aed; }
+    .reason { font-size: 11px; color: var(--muted); flex: 1; min-width: 0; }
+    .right-meta { text-align: right; flex-shrink: 0; font-size: 12px; }
+    .odds { font-weight: 800; color: var(--warn); }
+    .pay { font-weight: 800; color: var(--ok); font-size: 11px; }
+    .race-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+    }
+    .race-chip {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .race-chip.active { background: var(--accent); color: #051018; border-color: var(--accent); }
+    .muted { color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top-bar">
+      <div class="top-row">
+        <div class="brand">🚴 競輪AI AUTO <span class="badge" id="syncStatus">読込中...</span></div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn active" id="btnToday" onclick="switchDay('today')">本日</button>
+          <button class="btn" id="btnTomorrow" onclick="switchDay('tomorrow')">翌日</button>
+          <button class="btn" id="btnToggle" onclick="toggleHeader()">▲ 畳む</button>
+        </div>
+      </div>
+      <div class="collapse-body" id="collapseBody">
+        <div class="controls-grid">
+          <label class="muted">予算: <input type="number" id="budgetInput" value="10000" step="100" min="600" style="width:92px;" onchange="renderAll()" /></label>
+          <button class="btn honmei-active" id="modeHonmei" onclick="setMode('honmei')">本命のみ</button>
+          <button class="btn" id="modeAna" onclick="setMode('ana')">穴のみ</button>
+          <button class="btn" id="modeHybrid" onclick="setMode('hybrid')">両方配分</button>
+          <button class="btn" onclick="loadAllData(true)">🔄 再取得</button>
+        </div>
+        <div class="controls-grid">
+          <span class="muted">結果記録:</span>
+          <input type="text" id="resInput" placeholder="例: 1-2-4" style="width:82px;" />
+          <input type="number" id="payoutInput" placeholder="払戻円" style="width:90px;" />
+          <button class="btn" onclick="recordResult()">判定保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-strip">
+      <div class="stat-box"><div class="stat-label">的中率</div><div class="stat-val" id="statHitRate">0%</div></div>
+      <div class="stat-box"><div class="stat-label">回収率</div><div class="stat-val" id="statRoi">0%</div></div>
+      <div class="stat-box"><div class="stat-label">本日収支</div><div class="stat-val" id="statProfit">¥0</div></div>
+      <div class="stat-box"><div class="stat-label">最高配当</div><div class="stat-val" id="statMax">¥0</div></div>
+    </div>
+
+    <div class="race-bar" id="raceBar"></div>
+    <div id="raceInfo" class="muted" style="margin-bottom:8px;"></div>
+
+    <div class="two-col">
+      <div class="panel honmei">
+        <div class="panel-head"><span>🎯 本命・EV重視（3連単）</span><span id="honmeiCountBadge" class="badge">0点</span></div>
+        <div id="honmeiList"></div>
+      </div>
+      <div class="panel ana">
+        <div class="panel-head"><span>🔥 穴・万車券狙い（3連単）</span><span id="anaCountBadge" class="badge">0点</span></div>
+        <div id="anaList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      day: "today",
+      data: { today: { races: [] }, tomorrow: { races: [] } },
+      selectedIdx: 0,
+      mode: "honmei",
+      records: JSON.parse(localStorage.getItem("keirin_ai_records_v1") || "[]")
+    };
+
+    function toggleHeader() {
+      const body = document.getElementById("collapseBody");
+      const btn = document.getElementById("btnToggle");
+      body.classList.toggle("hidden");
+      btn.textContent = body.classList.contains("hidden") ? "▼ 開く" : "▲ 畳む";
+    }
+
+    function setMode(m) {
+      state.mode = m;
+      document.getElementById("modeHonmei").className = "btn" + (m === "honmei" ? " honmei-active" : "");
+      document.getElementById("modeAna").className = "btn" + (m === "ana" ? " ana-active" : "");
+      document.getElementById("modeHybrid").className = "btn" + (m === "hybrid" ? " active" : "");
+      renderAll();
+    }
+
+    async function switchDay(d) {
+      state.day = d;
+      state.selectedIdx = 0;
+      document.getElementById("btnToday").className = "btn" + (d === "today" ? " active" : "");
+      document.getElementById("btnTomorrow").className = "btn" + (d === "tomorrow" ? " active" : "");
+      renderAll();
+    }
+
+    async function loadAllData(force = false) {
+      const statusEl = document.getElementById("syncStatus");
+      statusEl.textContent = "同期中...";
+      const q = force ? `?t=${Date.now()}` : "";
+      for (const d of ["today", "tomorrow"]) {
+        try {
+          const res = await fetch(`./data/${d}.json${q}`, { cache: "no-store" });
+          if (res.ok) {
+            state.data[d] = await res.json();
+          }
+        } catch (e) {
+          console.warn(d, e);
+        }
+      }
+      const total = (state.data.today.races?.length || 0) + (state.data.tomorrow.races?.length || 0);
+      statusEl.textContent = total > 0 ? `取得済 ${total}R` : "データ待機中";
+      renderAll();
+    }
+
+    function generatePredict(race) {
+      const players = race?.players?.length >= 3 ? [...race.players] : [
+        { car: 1, name: "軸A", score: 92, style: "両" },
+        { car: 2, name: "番手B", score: 89, style: "追" },
+        { car: 3, name: "先行C", score: 86, style: "逃" },
+        { car: 4, name: "捲りD", score: 84, style: "両" },
+        { car: 5, name: "単騎E", score: 81, style: "追" },
+        { car: 6, name: "穴F", score: 78, style: "逃" },
+        { car: 7, name: "大穴G", score: 76, style: "両" }
+      ];
+      const sorted = [...players].sort((a, b) => b.score - a.score);
+      const spread = sorted[0].score - sorted[sorted.length - 1].score;
+      const count = spread >= 12 ? 7 : spread >= 7 ? 10 : 13;
+      const cars = sorted.map(p => p.car);
+
+      const honmei = [];
+      const ana = [];
+      for (let i = 0; i < cars.length && honmei.length < count; i++) {
+        for (let j = 0; j < cars.length && honmei.length < count; j++) {
+          for (let k = 0; k < cars.length && honmei.length < count; k++) {
+            if (i !== j && j !== k && i !== k) {
+              const odds = +(6.5 + honmei.length * 4.8 + (i + j + k)).toFixed(1);
+              honmei.push({
+                combo: [cars[i], cars[j], cars[k]],
+                odds,
+                reason: i === 0 ? "本命軸ライン主導" : "番手差し・連動重視"
+              });
+            }
+          }
+        }
+      }
+
+      const rev = [...cars].reverse();
+      for (let i = 0; i < rev.length && ana.length < count; i++) {
+        for (let j = 0; j < rev.length && ana.length < count; j++) {
+          for (let k = 0; k < rev.length && ana.length < count; k++) {
+            if (i !== j && j !== k && i !== k) {
+              const odds = +(38.0 + ana.length * 24.5 + (i * 11)).toFixed(1);
+              ana.push({
+                combo: [rev[i], rev[j], rev[k]],
+                odds,
+                reason: i === 0 ? "踏み合い消耗・単騎一発" : "波乱捲り・3着ヒモ荒れ"
+              });
+            }
+          }
+        }
+      }
+      return { count, honmei, ana };
+    }
+
+    function allocate(items, budget) {
+      if (!items.length) return [];
+      const unit = 100;
+      const totalUnits = Math.max(items.length, Math.floor(budget / unit));
+      const weights = items.map(it => 1 / Math.max(1.5, it.odds));
+      const wSum = weights.reduce((a, b) => a + b, 0);
+      let amts = weights.map(w => Math.max(unit, Math.round((w / wSum) * totalUnits) * unit));
+      let diff = totalUnits * unit - amts.reduce((a, b) => a + b, 0);
+      let idx = 0;
+      while (diff !== 0 && items.length > 0) {
+        const step = diff > 0 ? unit : -unit;
+        if (amts[idx] + step >= unit) {
+          amts[idx] += step;
+          diff -= step;
+        }
+        idx = (idx + 1) % items.length;
+        if (idx === 0 && diff < 0 && amts.every(a => a <= unit)) break;
+      }
+      return items.map((it, i) => ({ ...it, amount: amts[i] }));
+    }
+
+    function renderBalls(combo) {
+      return combo.map(n => `<span class="ball c${n}">${n}</span>`).join('<span class="muted">-</span>');
+    }
+
+    function recordResult() {
+      const res = document.getElementById("resInput").value.trim();
+      const payout = Number(document.getElementById("payoutInput").value || 0);
+      const budget = Number(document.getElementById("budgetInput").value || 10000);
+      if (!res) return;
+      const race = (state.data[state.day]?.races || [])[state.selectedIdx];
+      state.records.push({
+        title: race?.title || "レース",
+        res,
+        spend: budget,
+        payout,
+        hit: payout > 0
+      });
+      localStorage.setItem("keirin_ai_records_v1", JSON.stringify(state.records));
+      document.getElementById("resInput").value = "";
+      document.getElementById("payoutInput").value = "";
+      renderStats();
+    }
+
+    function renderStats() {
+      const totalR = state.records.length;
+      const hits = state.records.filter(r => r.hit).length;
+      const spend = state.records.reduce((a, b) => a + b.spend, 0);
+      const payout = state.records.reduce((a, b) => a + b.payout, 0);
+      const maxPay = state.records.reduce((a, b) => Math.max(a, b.payout), 0);
+      const profit = payout - spend;
+
+      document.getElementById("statHitRate").textContent = totalR ? `${Math.round((hits / totalR) * 100)}%` : "0%";
+      document.getElementById("statRoi").textContent = spend ? `${Math.round((payout / spend) * 100)}%` : "0%";
+      document.getElementById("statProfit").textContent = `${profit >= 0 ? "+" : ""}¥${profit.toLocaleString()}`;
+      document.getElementById("statMax").textContent = `¥${maxPay.toLocaleString()}`;
+    }
+
+    function renderAll() {
+      renderStats();
+      const races = state.data[state.day]?.races || [];
+      const bar = document.getElementById("raceBar");
+      const info = document.getElementById("raceInfo");
+
+      if (!races.length) {
+        bar.innerHTML = `<span class="muted">データ未更新です。「🔄 再取得」を押すか、GitHub Actionsの完了をお待ちください。</span>`;
+        info.textContent = `最終更新: ${state.data[state.day]?.updatedAt || "未取得"}`;
+        const sample = generatePredict(null);
+        drawBets(sample.honmei, sample.ana, sample.count);
+        return;
+      }
+
+      if (state.selectedIdx >= races.length) state.selectedIdx = 0;
+      bar.innerHTML = races.map((r, i) =>
+        `<button class="race-chip ${i === state.selectedIdx ? "active" : ""}" onclick="state.selectedIdx=${i};renderAll();">${r.title || `${r.venue} ${r.raceNum}R`}</button>`
+      ).join("");
+
+      const race = races[state.selectedIdx];
+      info.textContent = `${race.date || ""} ${race.title || ""}（更新: ${state.data[state.day]?.updatedAt || ""}）`;
+
+      const pred = generatePredict(race);
+      drawBets(pred.honmei, pred.ana, pred.count);
+    }
+
+    function drawBets(honmeiRaw, anaRaw, count) {
+      const budget = Math.max(600, Number(document.getElementById("budgetInput").value || 10000));
+      let hBudget = 0, aBudget = 0;
+      if (state.mode === "honmei") hBudget = budget;
+      else if (state.mode === "ana") aBudget = budget;
+      else { hBudget = Math.round(budget * 0.6); aBudget = budget - hBudget; }
+
+      const hList = allocate(honmeiRaw, hBudget);
+      const aList = allocate(anaRaw, aBudget);
+
+      document.getElementById("honmeiCountBadge").textContent = `${hList.length}点`;
+      document.getElementById("anaCountBadge").textContent = `${aList.length}点`;
+
+      document.getElementById("honmeiList").innerHTML = hList.map(b => `
+        <div class="bet-item">
+          <div class="balls">${renderBalls(b.combo)}</div>
+          <div class="reason">${b.reason}</div>
+          <div class="right-meta">
+            <div class="odds">${b.odds}倍</div>
+            <div>¥${b.amount.toLocaleString()}</div>
+            <div class="pay">戻¥${Math.round(b.amount * b.odds).toLocaleString()}</div>
+          </div>
+        </div>
+      `).join("");
+
+      document.getElementById("anaList").innerHTML = aList.map(b => `
+        <div class="bet-item">
+          <div class="balls">${renderBalls(b.combo)}</div>
+          <div class="reason">${b.reason}</div>
+          <div class="right-meta">
+            <div class="odds">${b.odds}倍</div>
+            <div>¥${b.amount.toLocaleString()}</div>
+            <div class="pay">戻¥${Math.round(b.amount * b.odds).toLocaleString()}</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    loadAllData();
+  </script>
+</body>
+</html>
