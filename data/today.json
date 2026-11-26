@@ -1,15 +1,15 @@
 {
   "date": "2026/11/27",
-  "updatedAt": "2026-11-27 01:34:20 JST",
+  "updatedAt": "2026-11-27 01:39:45 JST",
   "source": "live",
   "count": 2,
   "races": [
     {
-      "id": "today_佐世保_1_1",
+      "id": "today_佐世保_0",
       "date": "2026/11/27",
       "venue": "佐世保",
-      "raceNum": 1,
-      "title": "佐世保 1R",
+      "raceNum": 0,
+      "title": "佐世保 0R",
       "lines": [
         [
           1,
@@ -80,11 +80,11 @@
       ]
     },
     {
-      "id": "today_平塚_1_0",
+      "id": "today_平塚_0",
       "date": "2026/11/27",
       "venue": "平塚",
-      "raceNum": 1,
-      "title": "平塚 1R",
+      "raceNum": 0,
+      "title": "平塚 0R",
       "lines": [
         [
           2,
