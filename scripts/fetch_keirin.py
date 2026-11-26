@@ -8,13 +8,17 @@ from playwright.sync_api import sync_playwright
 JST = timezone(timedelta(hours=9))
 now_jst = datetime.now(JST)
 
-VENUES = [
-    "函館", "青森", "いわき平", "弥彦", "前橋", "取手", "宇都宮", "大宮", "西武園",
-    "京王閣", "立川", "松戸", "千葉", "川崎", "平塚", "小田原", "伊東", "静岡",
-    "名古屋", "岐阜", "大垣", "豊橋", "富山", "松阪", "四日市", "福井", "奈良",
-    "向日町", "和歌山", "岸和田", "玉野", "広島", "防府", "高松", "小松島",
-    "高知", "松山", "小倉", "久留米", "武雄", "佐世保", "別府", "熊本"
-]
+VENUES = {
+    "11": "函館", "12": "青森", "13": "いわき平", "21": "弥彦", "22": "前橋",
+    "23": "取手", "24": "宇都宮", "25": "大宮", "26": "西武園", "27": "京王閣",
+    "28": "立川", "31": "松戸", "32": "千葉", "34": "川崎", "35": "平塚",
+    "36": "小田原", "37": "伊東", "38": "静岡", "42": "名古屋", "43": "岐阜",
+    "44": "大垣", "45": "豊橋", "46": "富山", "47": "松阪", "48": "四日市",
+    "51": "福井", "53": "奈良", "54": "向日町", "55": "和歌山", "56": "岸和田",
+    "61": "玉野", "62": "広島", "63": "防府", "71": "高松", "73": "小松島",
+    "74": "高知", "75": "松山", "81": "小倉", "83": "久留米", "84": "武雄",
+    "85": "佐世保", "86": "別府", "87": "熊本"
+}
 
 
 def parse_players_from_page(page):
@@ -87,50 +91,69 @@ def parse_players_from_page(page):
     return players, lines
 
 
-def scrape_with_browser(browser, target_dt, suffix):
+def collect_race_urls(page, target_dt):
     date_str = target_dt.strftime("%Y%m%d")
+    race_urls = set()
+    seeds = [
+        f"https://keirin.jp/pc/top?date={date_str}",
+        "https://keirin.kdreams.jp/racecard/",
+        f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
+    ]
+
+    for seed in seeds:
+        try:
+            page.goto(seed, timeout=25000, wait_until="domcontentloaded")
+            page.wait_for_timeout(1500)
+            hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
+            for h in hrefs:
+                clean = h.split("#")[0]
+                if "keirin.jp" in clean and ("syutsuba" in clean or "race" in clean) and date_str in clean:
+                    race_urls.add(clean)
+                elif "/racecard/" in clean and re.search(r'/racecard/\d{8,18}/?$', clean.split("?")[0]):
+                    base = clean.split("?")[0]
+                    if date_str in base:
+                        race_urls.add(base)
+                    else:
+                        try:
+                            page.goto(base, timeout=20000, wait_until="domcontentloaded")
+                            page.wait_for_timeout(700)
+                            sub = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
+                            for sh in sub:
+                                sc = sh.split("#")[0]
+                                if "/racecard/" in sc and date_str in sc:
+                                    race_urls.add(sc)
+                        except Exception:
+                            pass
+        except Exception:
+            continue
+
+    return sorted(list(race_urls))
+
+
+def scrape_day(browser, target_dt, suffix):
     disp_date = target_dt.strftime("%Y/%m/%d")
     page = browser.new_page()
     races = []
     seen = set()
 
     try:
-        page.goto("https://keirin.kdreams.jp/racecard/", timeout=30000, wait_until="domcontentloaded")
-        page.wait_for_timeout(1500)
-
-        hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-        venue_urls = sorted(list({
-            u.split("#")[0].split("?")[0]
-            for u in hrefs
-            if "/racecard/" in u and re.search(r'/[a-z]+/racecard/\d{8,18}/?$', u.split("#")[0].split("?")[0])
-        }))
-
-        race_urls = set()
-        for vu in venue_urls:
-            try:
-                page.goto(vu, timeout=20000, wait_until="domcontentloaded")
-                page.wait_for_timeout(800)
-                sub_hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-                for su in sub_hrefs:
-                    clean = su.split("#")[0].split("?")[0]
-                    if "/racecard/" in clean and date_str in clean and re.search(r'/racecard/\d{12,18}/?$', clean):
-                        race_urls.add(clean)
-            except Exception:
-                continue
-
-        for ru in sorted(list(race_urls)):
+        urls = collect_race_urls(page, target_dt)
+        for ru in urls[:120]:
             try:
                 page.goto(ru, timeout=20000, wait_until="domcontentloaded")
                 page.wait_for_timeout(600)
                 title = page.title()
-                venue_name = next((v for v in VENUES if v in title), "競輪")
-                rnum_m = re.search(r'(\d{1,2})R', title)
+                venue_name = next((v for v in VENUES.values() if v in title), None)
+                if not venue_name:
+                    m_code = re.search(r'(?:jorncd=|/racecard/)(\d{2})', ru)
+                    if m_code and m_code.group(1) in VENUES:
+                        venue_name = VENUES[m_code.group(1)]
+                    else:
+                        venue_name = "競輪"
+
+                rnum_m = re.search(r'(\d{1,2})R', title) or re.search(r'(?:raceno=|r)(\d{1,2})', ru, re.I)
                 race_num = int(rnum_m.group(1)) if rnum_m else 0
-                if race_num == 0:
-                    m_end = re.search(r'(\d{2})/?$', ru)
-                    if m_end and 1 <= int(m_end.group(1)) <= 12:
-                        race_num = int(m_end.group(1))
-                if race_num == 0:
+                if not (1 <= race_num <= 12):
                     continue
 
                 key = f"{venue_name}_{race_num}"
@@ -168,8 +191,8 @@ def main():
     os.makedirs("data", exist_ok=True)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        today_data = scrape_with_browser(browser, now_jst, "today")
-        tomorrow_data = scrape_with_browser(browser, now_jst + timedelta(days=1), "tomorrow")
+        today_data = scrape_day(browser, now_jst, "today")
+        tomorrow_data = scrape_day(browser, now_jst + timedelta(days=1), "tomorrow")
         browser.close()
 
     with open("data/today.json", "w", encoding="utf-8") as f:
