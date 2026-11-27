@@ -161,16 +161,21 @@ def scrape_day_fast(target_dt, suffix):
                 base_urls.add(full)
 
     # Kドリームス正規URL構造: [場2桁][日付8桁][開催2桁][レース2桁(01〜12)][00]
-    race_urls = set()
+        race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
-        m16 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d{12})\d{2}(\d{2})$', clean)
-        if m16:
+        # 末尾4桁が xx00 の場合（例: ...010000 -> ...010100 〜 ...011200）
+        m_xx00 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d+)\d{2}00$', clean)
+        if m_xx00:
             for r_no in range(1, 13):
-                race_urls.add(f"{m16.group(1)}{r_no:02d}{m16.group(2)}/")
-                race_urls.add(f"{m16.group(1)}{r_no:02d}00/")
-        else:
-            race_urls.add(clean + "/")
+                race_urls.add(f"{m_xx00.group(1)}{r_no:02d}00/")
+        # 末尾2桁を 01〜12 に置換（例: ...00 -> ...01 〜 ...12）
+        m_end2 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d+)\d{2}$', clean)
+        if m_end2:
+            for r_no in range(1, 13):
+                race_urls.add(f"{m_end2.group(1)}{r_no:02d}/")
+        race_urls.add(clean + "/")
+
 
     traces = []
 
