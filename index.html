@@ -3,559 +3,133 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="競輪AI予想" />
-  <title>KEIRIN AI PREDICTOR PRO</title>
-  <style>
-    :root {
-      --bg: #060a12; --card: #101726; --card2: #172136; --border: #25344f;
-      --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
-      --honmei: #2563eb; --ana: #dc2626; --ok: #10b981; --warn: #f59e0b;
-    }
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
-      font-size: 13px; line-height: 1.4; padding-bottom: 40px;
-    }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 8px; }
-    .top-bar { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
-    .top-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-    .brand { font-weight: 800; font-size: 14px; display: flex; align-items: center; gap: 6px; }
-    .badge { font-size: 10px; padding: 2px 6px; border-radius: 999px; background: #1e293b; color: var(--ok); font-weight: 700; }
-    .btn {
-      background: var(--card2); color: var(--text); border: 1px solid var(--border);
-      border-radius: 7px; padding: 5px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
-    }
-    .btn.active { background: var(--accent); color: #041019; border-color: var(--accent); }
-    .btn.honmei-active { background: var(--honmei); color: #fff; border-color: var(--honmei); }
-    .btn.ana-active { background: var(--ana); color: #fff; border-color: var(--ana); }
-    .collapse-body.hidden { display: none; }
-    .controls-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; align-items: center; }
-    input[type="number"], input[type="text"] {
-      background: var(--bg); color: var(--text); border: 1px solid var(--border);
-      border-radius: 7px; padding: 5px 7px; font-size: 12px;
-    }
-    .stats-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
-    .stat-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px; text-align: center; }
-    .stat-label { font-size: 10px; color: var(--muted); }
-    .stat-val { font-size: 14px; font-weight: 800; margin-top: 1px; }
-    .race-bar { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; }
-    .race-chip {
-      flex-shrink: 0; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border);
-      background: var(--card); color: var(--text); font-size: 11px; font-weight: 700; cursor: pointer;
-    }
-    .race-chip.active { background: var(--accent); color: #041019; border-color: var(--accent); }
-    .ai-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; margin-bottom: 8px; }
-    .ai-title { font-weight: 800; color: var(--accent); font-size: 12px; margin-bottom: 4px; }
-    .line-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-    .line-tag { background: var(--card2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px; font-size: 11px; font-weight: 700; }
-    .player-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
-    .player-table th { color: var(--muted); text-align: left; border-bottom: 1px solid var(--border); padding: 3px 4px; }
-    .player-table td { padding: 4px; border-bottom: 1px solid #182236; }
-    .two-col { display: grid; grid-template-columns: 1fr; gap: 8px; }
-    @media (min-width: 760px) { .two-col { grid-template-columns: 1fr 1fr; } }
-    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 9px; }
-    .panel.honmei { border-top: 3px solid var(--honmei); }
-    .panel.ana { border-top: 3px solid var(--ana); }
-    .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; font-weight: 800; font-size: 13px; }
-    .bet-item {
-      display: flex; align-items: center; justify-content: space-between; gap: 7px;
-      background: var(--card2); border: 1px solid var(--border); border-radius: 8px;
-      padding: 6px 8px; margin-bottom: 5px;
-    }
-    .balls { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
-    .ball {
-      width: 21px; height: 21px; border-radius: 50%; display: inline-flex; align-items: center;
-      justify-content: center; font-size: 11px; font-weight: 800; color: #fff; background: #334155;
-    }
-    .c1 { background: #f8fafc; color: #0f172a; }
-    .c2 { background: #1e293b; border: 1px solid #64748b; }
-    .c3 { background: #dc2626; }
-    .c4 { background: #2563eb; }
-    .c5 { background: #eab308; color: #0f172a; }
-    .c6 { background: #16a34a; }
-    .c7 { background: #ea580c; }
-    .c8 { background: #db2777; }
-    .c9 { background: #7c3aed; }
-    .reason { font-size: 11px; color: var(--muted); flex: 1; min-width: 0; }
-    .ev-tag { display: inline-block; font-size: 10px; color: var(--accent); font-weight: 700; }
-    .right-meta { text-align: right; flex-shrink: 0; font-size: 11px; }
-    .odds { font-weight: 800; color: var(--warn); font-size: 12px; }
-    .pay { font-weight: 800; color: var(--ok); font-size: 10px; }
-    .muted { color: var(--muted); font-size: 11px; }
-  </style>
+  <title>KEIRIN LIVE DATA VIEWER (Step 1)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="wrap">
-    <div class="top-bar">
-      <div class="top-row">
-        <div class="brand">🚴 競輪AI ENGINE <span class="badge" id="syncStatus">読込中...</span></div>
-        <div style="display:flex;gap:5px;">
-          <button class="btn active" id="btnToday" onclick="switchDay('today')">本日</button>
-          <button class="btn" id="btnTomorrow" onclick="switchDay('tomorrow')">翌日</button>
-          <button class="btn" id="btnToggle" onclick="toggleHeader()">▲ 畳む</button>
-        </div>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-3">
+  <div class="max-w-xl mx-auto space-y-3">
+    <!-- コンパクトヘッダー -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+      <div>
+        <div class="text-xs text-cyan-400 font-bold">KEIRIN AUTO-SYNC ENGINE</div>
+        <h1 id="date-title" class="text-base font-bold">データ読込中...</h1>
       </div>
-      <div class="collapse-body" id="collapseBody">
-        <div class="controls-grid">
-          <label class="muted">予算: <input type="number" id="budgetInput" value="10000" step="100" min="600" style="width:84px;" onchange="renderAll()" /></label>
-          <button class="btn honmei-active" id="modeHonmei" onclick="setMode('honmei')">本命のみ</button>
-          <button class="btn" id="modeAna" onclick="setMode('ana')">穴のみ</button>
-          <button class="btn" id="modeHybrid" onclick="setMode('hybrid')">両方配分</button>
-          <button class="btn" onclick="loadAllData(true)">🔄 再取得</button>
-        </div>
-        <div class="controls-grid">
-          <span class="muted">結果記録:</span>
-          <input type="text" id="resInput" placeholder="1-2-4" style="width:74px;" />
-          <input type="number" id="payoutInput" placeholder="払戻円" style="width:84px;" />
-          <button class="btn" onclick="recordResult()">判定保存</button>
-        </div>
+      <div class="text-right">
+        <span id="status-badge" class="text-[11px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700">待機中</span>
+        <div id="updated-at" class="text-[10px] text-slate-400 mt-1">--:--</div>
       </div>
     </div>
 
-    <div class="stats-strip">
-      <div class="stat-box"><div class="stat-label">的中率</div><div class="stat-val" id="statHitRate">0%</div></div>
-      <div class="stat-box"><div class="stat-label">回収率</div><div class="stat-val" id="statRoi">0%</div></div>
-      <div class="stat-box"><div class="stat-label">本日収支</div><div class="stat-val" id="statProfit">¥0</div></div>
-      <div class="stat-box"><div class="stat-label">最高配当</div><div class="stat-val" id="statMax">¥0</div></div>
+    <!-- 開催場ボタン一覧 -->
+    <div id="venue-tabs" class="flex flex-wrap gap-1.5"></div>
+
+    <!-- フィルター -->
+    <div class="flex gap-1.5 text-xs">
+      <button onclick="setFilter('ALL')" id="f-ALL" class="px-3 py-1.5 rounded-lg bg-cyan-600 font-bold">すべて</button>
+      <button onclick="setFilter('FINISHED')" id="f-FINISHED" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300">確定済 (結果)</button>
+      <button onclick="setFilter('OPEN')" id="f-OPEN" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300">これから発走</button>
     </div>
 
-    <div class="race-bar" id="raceBar"></div>
-
-    <div class="ai-box" id="aiAnalysisBox">
-      <div class="ai-title">🧠 AI展開＆バンク解析レポート</div>
-      <div id="aiSummaryText" class="muted">出走表データを解析中...</div>
-      <div class="line-tags" id="lineTags"></div>
-      <details open>
-        <summary class="muted" style="cursor:pointer;margin-top:4px;">出走表・競走得点・AI評価スコア</summary>
-        <table class="player-table">
-          <thead><tr><th>車</th><th>選手名</th><th>脚</th><th>得点</th><th>B</th><th>AI指数</th></tr></thead>
-          <tbody id="playerTbody"></tbody>
-        </table>
-      </details>
-    </div>
-
-    <div class="two-col">
-      <div class="panel honmei">
-        <div class="panel-head"><span>🎯 本命・EV重視（3連単）</span><span id="honmeiCountBadge" class="badge">0点</span></div>
-        <div id="honmeiList"></div>
-      </div>
-      <div class="panel ana">
-        <div class="panel-head"><span>🔥 穴・万車券狙い（3連単）</span><span id="anaCountBadge" class="badge">0点</span></div>
-        <div id="anaList"></div>
-      </div>
-    </div>
+    <!-- レース一覧 -->
+    <div id="race-list" class="space-y-2"></div>
   </div>
 
   <script>
-    const BANKS = {
-      "前橋": { len: 335, straight: 46.7, type: "33超高速・先行有利" },
-      "松戸": { len: 333, straight: 38.2, type: "33直線短・逃げ粘り" },
-      "小田原": { len: 333, straight: 36.1, type: "33カント急・先行天国" },
-      "伊東": { len: 333, straight: 46.6, type: "33直線長め・番手差し" },
-      "奈良": { len: 333, straight: 38.0, type: "33先行有利・捲り不発注意" },
-      "富山": { len: 333, straight: 43.0, type: "33先行〜番手有利" },
-      "防府": { len: 333, straight: 42.5, type: "33先行有利" },
-      "宇都宮": { len: 500, straight: 63.3, type: "500直線長・差し強襲" },
-      "大宮": { len: 500, straight: 66.7, type: "500超長直線・追い込み天国" },
-      "高知": { len: 500, straight: 52.0, type: "500皿バンク・先行残る" },
-      "立川": { len: 400, straight: 58.0, type: "400直線長・差し有利" },
-      "弥彦": { len: 400, straight: 63.1, type: "400直線最長クラス・追込有利" },
-      "武雄": { len: 400, straight: 64.4, type: "400直線超長・番手差し決着多" },
-      "小倉": { len: 400, straight: 56.9, type: "ドーム無風・スピード捲り" },
-      "川崎": { len: 400, straight: 58.0, type: "400軽バンク・差し捲り互角" },
-      "平塚": { len: 400, straight: 54.2, type: "400高速標準バンク" },
-      "四日市": { len: 400, straight: 62.4, type: "400直線長・外伸び注意" },
-      "玉野": { len: 400, straight: 47.9, type: "400直線短め・先行番手" },
-      "福井": { len: 400, straight: 52.8, type: "400標準クセなし" },
-      "静岡": { len: 400, straight: 56.4, type: "400直線やや長・差し有利" },
-      "松山": { len: 400, straight: 58.6, type: "400軽走路・捲り差し伸びる" },
-      "西武園": { len: 400, straight: 47.6, type: "400みなし33・先行有利" }
-    };
+    let appData = null;
+    let selectedVenueIdx = 0;
+    let currentFilter = 'ALL';
 
-    const BUILTIN_RACES = {
-      today: [
-        {
-          venue: "小倉", raceNum: 11, title: "小倉 11R (S級特選)",
-          players: [
-            { car: 1, name: "北井佑季", score: 96.4, style: "逃", b: 8, line: 1, pos: 1 },
-            { car: 2, name: "古性優作", score: 97.1, style: "両", b: 4, line: 2, pos: 1 },
-            { car: 3, name: "新山響平", score: 94.2, style: "逃", b: 7, line: 3, pos: 1 },
-            { car: 4, name: "岩本俊介", score: 91.5, style: "追", b: 1, line: 1, pos: 2 },
-            { car: 5, name: "脇本雄太", score: 95.8, style: "両", b: 5, line: 2, pos: 2 },
-            { car: 6, name: "守澤太志", score: 90.3, style: "追", b: 0, line: 3, pos: 2 },
-            { car: 7, name: "和田健太郎", score: 89.4, style: "追", b: 0, line: 1, pos: 3 }
-          ]
-        },
-        {
-          venue: "立川", raceNum: 12, title: "立川 12R (S級決勝)",
-          players: [
-            { car: 1, name: "佐藤慎太郎", score: 92.1, style: "追", b: 0, line: 1, pos: 2 },
-            { car: 2, name: "清水裕友", score: 94.6, style: "両", b: 4, line: 2, pos: 2 },
-            { car: 3, name: "太田海也", score: 95.3, style: "逃", b: 7, line: 1, pos: 1 },
-            { car: 4, name: "山田英明", score: 88.7, style: "追", b: 1, line: 3, pos: 2 },
-            { car: 5, name: "松浦悠士", score: 96.0, style: "両", b: 3, line: 2, pos: 1 },
-            { car: 6, name: "渡部幸訓", score: 87.9, style: "追", b: 0, line: 1, pos: 3 },
-            { car: 7, name: "荒井崇博", score: 89.8, style: "追", b: 2, line: 3, pos: 1 }
-          ]
-        },
-        {
-          venue: "前橋", raceNum: 10, title: "前橋 10R (S級準決)",
-          players: [
-            { car: 1, name: "眞杉匠", score: 96.8, style: "逃", b: 9, line: 1, pos: 1 },
-            { car: 2, name: "平原康多", score: 93.4, style: "追", b: 1, line: 1, pos: 2 },
-            { car: 3, name: "深谷知広", score: 95.5, style: "逃", b: 8, line: 2, pos: 1 },
-            { car: 4, name: "郡司浩平", score: 96.2, style: "両", b: 4, line: 2, pos: 2 },
-            { car: 5, name: "諸橋愛", score: 90.1, style: "追", b: 0, line: 1, pos: 3 },
-            { car: 6, name: "浅井康太", score: 92.7, style: "両", b: 2, line: 0, pos: 1 },
-            { car: 7, name: "松谷秀幸", score: 89.2, style: "追", b: 0, line: 2, pos: 3 }
-          ]
+    async function loadData() {
+      try {
+        const res = await fetch('./data.json?t=' + Date.now());
+        if (!res.ok) throw new Error('data.json がまだ生成されていません');
+        appData = await res.json();
+
+        document.getElementById('date-title').textContent = appData.display_date || '開催一覧';
+        document.getElementById('updated-at').textContent = '更新: ' + (appData.updated_at || '');
+        const badge = document.getElementById('status-badge');
+        if (appData.venues && appData.venues.length > 0) {
+          badge.textContent = `実データ取得済 (${appData.venues.length}場)`;
+        } else {
+          badge.textContent = '開催データ空 (' + appData.status + ')';
+          badge.className = 'text-[11px] px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-700';
         }
-      ],
-      tomorrow: [
-        {
-          venue: "川崎", raceNum: 11, title: "川崎 11R (初日特選)",
-          players: [
-            { car: 1, name: "郡司浩平", score: 96.5, style: "両", b: 5, line: 1, pos: 1 },
-            { car: 2, name: "松井宏佑", score: 94.8, style: "逃", b: 8, line: 1, pos: 2 },
-            { car: 3, name: "犬伏湧也", score: 95.1, style: "逃", b: 9, line: 2, pos: 1 },
-            { car: 4, name: "小倉竜二", score: 90.4, style: "追", b: 0, line: 2, pos: 2 },
-            { car: 5, name: "吉田拓矢", score: 94.9, style: "両", b: 4, line: 3, pos: 1 },
-            { car: 6, name: "武藤龍生", score: 89.6, style: "追", b: 0, line: 3, pos: 2 },
-            { car: 7, name: "東口善朋", score: 88.9, style: "追", b: 0, line: 0, pos: 1 }
-          ]
-        }
-      ]
-    };
-
-    const state = {
-      day: "today",
-      data: { today: { races: BUILTIN_RACES.today }, tomorrow: { races: BUILTIN_RACES.tomorrow } },
-      selectedIdx: 0,
-      mode: "honmei",
-      records: JSON.parse(localStorage.getItem("keirin_ai_records_v3") || "[]")
-    };
-
-    function toggleHeader() {
-      const body = document.getElementById("collapseBody");
-      const btn = document.getElementById("btnToggle");
-      body.classList.toggle("hidden");
-      btn.textContent = body.classList.contains("hidden") ? "▼ 開く" : "▲ 畳む";
-    }
-
-    function setMode(m) {
-      state.mode = m;
-      document.getElementById("modeHonmei").className = "btn" + (m === "honmei" ? " honmei-active" : "");
-      document.getElementById("modeAna").className = "btn" + (m === "ana" ? " ana-active" : "");
-      document.getElementById("modeHybrid").className = "btn" + (m === "hybrid" ? " active" : "");
-      renderAll();
-    }
-
-    function switchDay(d) {
-      state.day = d;
-      state.selectedIdx = 0;
-      document.getElementById("btnToday").className = "btn" + (d === "today" ? " active" : "");
-      document.getElementById("btnTomorrow").className = "btn" + (d === "tomorrow" ? " active" : "");
-      renderAll();
-    }
-
-    async function fetchDirectFromKdreams() {
-      const proxy = "https://api.allorigins.win/raw?url=";
-      const topHtml = await (await fetch(proxy + encodeURIComponent("https://keirin.kdreams.jp/racecard/"))).text();
-      const doc = new DOMParser().parseFromString(topHtml, "text/html");
-      const links = [...doc.querySelectorAll("a")]
-        .map(a => a.getAttribute("href") || "")
-        .filter(h => /\/racecard\/\d{10,14}\/?$/.test(h));
-      const uniqueLinks = [...new Set(links)].slice(0, 6);
-      const parsed = [];
-      for (const lk of uniqueLinks) {
-        const fullUrl = lk.startsWith("http") ? lk : "https://keirin.kdreams.jp" + lk;
-        const rHtml = await (await fetch(proxy + encodeURIComponent(fullUrl))).text();
-        const rDoc = new DOMParser().parseFromString(rHtml, "text/html");
-        const title = (rDoc.querySelector("title")?.textContent || "").trim();
-        const venue = Object.keys(BANKS).find(v => title.includes(v)) || "小倉";
-        const rNumM = title.match(/(\d{1,2})R/);
-        const raceNum = rNumM ? Number(rNumM[1]) : (parsed.length + 1);
-        const players = [];
-        rDoc.querySelectorAll("tr").forEach(tr => {
-          const cells = [...tr.querySelectorAll("td,th")].map(td => td.textContent.replace(/\s+/g, " ").trim());
-          if (cells.length >= 4 && /^[1-9]$/.test(cells[0])) {
-            const car = Number(cells[0]);
-            const nameCell = cells.find(c => /[\u4E00-\u9FFF]{2,}/.test(c) && !/[級班県府都道]/.test(c)) || "";
-            const name = nameCell.replace(/[0-9A-Za-z\(\)（）/・\s].*/g, "");
-            const scM = cells.join(" ").match(/\b([6-9]\d\.\d{1,2}|1[0-2]\d\.\d{1,2})\b/);
-            const score = scM ? Number(scM[1]) : 85.0;
-            const style = cells.find(c => ["逃", "両", "追"].includes(c)) || "両";
-            if (name && !players.some(p => p.car === car)) {
-              players.push({ car, name, score, style, b: style === "逃" ? 6 : 1, line: (car % 3) + 1, pos: car <= 3 ? 1 : 2 });
-            }
-          }
-        });
-        if (players.length >= 5) {
-          parsed.push({ venue, raceNum, title: `${venue} ${raceNum}R`, players });
-        }
+        renderVenues();
+        renderRaces();
+      } catch (e) {
+        document.getElementById('date-title').textContent = '初回データ未生成';
+        document.getElementById('race-list').innerHTML = `
+          <div class="bg-slate-900 border border-amber-700/60 rounded-xl p-4 text-xs text-amber-300 leading-relaxed">
+            ⚠️ まだ <b>data.json</b> が作られていません。<br>
+            GitHubの「Actions」タブ →「Fetch Keirin Data」→「Run workflow」を1回押すと、数秒後に全レースが自動表示されます！
+          </div>`;
       }
-      return parsed;
     }
 
-    async function loadAllData(force = false) {
-      const statusEl = document.getElementById("syncStatus");
-      statusEl.textContent = "同期中...";
-      const q = `?t=${Date.now()}`;
-      let liveLoaded = false;
-
-      for (const d of ["today", "tomorrow"]) {
-        try {
-          const res = await fetch(`./data/${d}.json${q}`, { cache: "no-store" });
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.races?.length > 0 && json.source === "live") {
-              state.data[d] = json;
-              liveLoaded = true;
-            }
-          }
-        } catch (e) {}
-      }
-
-      if (!liveLoaded) {
-        try {
-          const directRaces = await fetchDirectFromKdreams();
-          if (directRaces.length > 0) {
-            state.data.today = { races: directRaces };
-            liveLoaded = true;
-          }
-        } catch (e) {}
-      }
-
-      const cToday = state.data.today.races.length;
-      const cTom = state.data.tomorrow.races.length;
-      statusEl.textContent = liveLoaded ? `LIVE 本日${cToday}R / 翌日${cTom}R` : `稼働中 本日${cToday}R / 翌日${cTom}R`;
-      renderAll();
-    }
-
-    function runKeirinAiEngine(race) {
-      const bank = BANKS[race?.venue] || { len: 400, straight: 54.0, type: "400標準バンク" };
-      const isShort = bank.len === 333 || bank.len === 335 || bank.straight < 48;
-      const isLong = bank.len === 500 || bank.straight >= 58;
-      const rawPlayers = race.players;
-
-      const lineMap = {};
-      rawPlayers.forEach(p => {
-        if (p.line > 0) {
-          if (!lineMap[p.line]) lineMap[p.line] = [];
-          lineMap[p.line].push(p);
-        }
+    function renderVenues() {
+      const box = document.getElementById('venue-tabs');
+      box.innerHTML = '';
+      (appData.venues || []).forEach((v, idx) => {
+        const active = idx === selectedVenueIdx;
+        const btn = document.createElement('button');
+        btn.className = active
+          ? 'px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-extrabold text-xs shadow'
+          : 'px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs';
+        btn.textContent = v.name;
+        btn.onclick = () => { selectedVenueIdx = idx; renderVenues(); renderRaces(); };
+        box.appendChild(btn);
       });
-      Object.values(lineMap).forEach(arr => arr.sort((a, b) => a.pos - b.pos));
-      const lineGroups = Object.values(lineMap);
-      const escapeLines = lineGroups.filter(g => g[0]?.style === "逃" || (g[0]?.b || 0) >= 4);
-      const isFumiai = escapeLines.length >= 2;
+    }
 
-      const evaluated = rawPlayers.map(p => {
-        let aiScore = p.score;
-        const myLine = lineMap[p.line] || [p];
-        const lineLen = myLine.length;
+    function setFilter(f) {
+      currentFilter = f;
+      ['ALL', 'FINISHED', 'OPEN'].forEach(k => {
+        document.getElementById('f-' + k).className = k === f
+          ? 'px-3 py-1.5 rounded-lg bg-cyan-600 font-bold'
+          : 'px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300';
+      });
+      renderRaces();
+    }
 
-        if (lineLen >= 3) aiScore += 2.8;
-        else if (lineLen === 2) aiScore += 1.4;
-        else aiScore -= 1.2;
+    function renderRaces() {
+      const list = document.getElementById('race-list');
+      list.innerHTML = '';
+      const venue = (appData.venues || [])[selectedVenueIdx];
+      if (!venue) return;
 
-        if (p.pos === 1) {
-          aiScore += (p.b || 0) * 0.35;
-          if (isShort && !isFumiai) aiScore += 3.2;
-          if (isFumiai) aiScore -= 2.2;
-        } else if (p.pos === 2) {
-          const leader = myLine[0];
-          if (leader && (leader.style === "逃" || (leader.b || 0) >= 3)) {
-            aiScore += 3.5;
-            if (isLong) aiScore += 2.4;
-          }
-        } else if (p.pos >= 3) {
-          if (isLong) aiScore += 1.5;
-        }
-
-        if (isFumiai && p.line === 0 && p.style === "両") {
-          aiScore += 3.4;
-        }
-
-        return { ...p, aiScore: +aiScore.toFixed(2) };
+      const filtered = (venue.races || []).filter(r => {
+        if (currentFilter === 'FINISHED') return r.status === '確定済';
+        if (currentFilter === 'OPEN') return r.status !== '確定済';
+        return true;
       });
 
-      evaluated.sort((a, b) => b.aiScore - a.aiScore);
-
-      const maxS = evaluated[0].aiScore;
-      const exps = evaluated.map(p => Math.exp((p.aiScore - maxS) * 0.32));
-      const sumExp = exps.reduce((a, b) => a + b, 0);
-      evaluated.forEach((p, idx) => { p.prob = exps[idx] / sumExp; });
-
-      const topGap = evaluated[0].aiScore - evaluated[3].aiScore;
-      const numLines = lineGroups.length;
-      let betCount = 9;
-      if (topGap >= 6.5 && numLines <= 2 && !isFumiai) betCount = 6;
-      else if (topGap >= 4.5 && !isFumiai) betCount = 8;
-      else if (isFumiai || numLines >= 4 || topGap < 2.5) betCount = 14;
-      else betCount = 11;
-
-      const allCombos = [];
-      for (let i = 0; i < evaluated.length; i++) {
-        for (let j = 0; j < evaluated.length; j++) {
-          if (i === j) continue;
-          for (let k = 0; k < evaluated.length; k++) {
-            if (k === i || k === j) continue;
-            const p1 = evaluated[i], p2 = evaluated[j], p3 = evaluated[k];
-            const rem1 = Math.max(0.05, 1 - p1.prob);
-            const rem2 = Math.max(0.05, rem1 - p2.prob);
-            let trueProb = p1.prob * (p2.prob / rem1) * (p3.prob / rem2);
-
-            const sameLine12 = p1.line > 0 && p1.line === p2.line;
-            let tag = "実力上位決着";
-            if (sameLine12 && p1.pos === 1 && p2.pos === 2) {
-              trueProb *= 1.38;
-              tag = "ラインワンツー";
-            } else if (sameLine12 && p1.pos === 2 && p2.pos === 1) {
-              trueProb *= isLong ? 1.45 : 1.28;
-              tag = "番手差し切り";
-            } else if (p1.line > 0 && p2.line > 0 && p1.line !== p2.line) {
-              tag = "別線スジ違い";
-            } else if (p1.line === 0) {
-              trueProb *= isFumiai ? 1.35 : 0.92;
-              tag = "単騎一発捲り";
-            }
-
-            const marketProb = Math.max(0.0012, trueProb * (sameLine12 ? 1.18 : 0.72));
-            const estOdds = +Math.min(999.9, Math.max(3.2, (0.75 / marketProb))).toFixed(1);
-            const ev = +(trueProb * estOdds).toFixed(2);
-
-            allCombos.push({ combo: [p1.car, p2.car, p3.car], trueProb, odds: estOdds, ev, reason: tag });
-          }
-        }
-      }
-
-      const honmei = [...allCombos]
-        .filter(c => c.odds <= 95.0)
-        .sort((a, b) => (b.trueProb * Math.sqrt(b.ev)) - (a.trueProb * Math.sqrt(a.ev)))
-        .slice(0, betCount);
-
-      const ana = [...allCombos]
-        .filter(c => c.odds >= 35.0 && !honmei.some(h => h.combo.join("-") === c.combo.join("-")))
-        .sort((a, b) => b.ev - a.ev)
-        .slice(0, betCount);
-
-      const summary = `【${bank.type} / 直線${bank.straight}m】${isFumiai ? "先行型複数で踏み合い濃厚！番手差し＆単騎一発警戒。" : "主導権ライン明確。スジ決着を軸に3着ヒモ抜けをカバー。"} 混戦度判定により最適買い目「${betCount}点」を自動選出。`;
-
-      return { evaluated, lineGroups, honmei, ana, betCount, summary };
-    }
-
-    function allocate(items, budget) {
-      if (!items.length || budget <= 0) return [];
-      const unit = 100;
-      const totalUnits = Math.max(items.length, Math.floor(budget / unit));
-      const weights = items.map(it => 1 / Math.max(1.5, it.odds));
-      const wSum = weights.reduce((a, b) => a + b, 0);
-      let amts = weights.map(w => Math.max(unit, Math.round((w / wSum) * totalUnits) * unit));
-      let diff = totalUnits * unit - amts.reduce((a, b) => a + b, 0);
-      let idx = 0;
-      while (diff !== 0 && items.length > 0) {
-        const step = diff > 0 ? unit : -unit;
-        if (amts[idx] + step >= unit) { amts[idx] += step; diff -= step; }
-        idx = (idx + 1) % items.length;
-        if (idx === 0 && diff < 0 && amts.every(a => a <= unit)) break;
-      }
-      return items.map((it, i) => ({ ...it, amount: amts[i] }));
-    }
-
-    function renderBalls(combo) {
-      return combo.map(n => `<span class="ball c${n}">${n}</span>`).join('<span class="muted">-</span>');
-    }
-
-    function recordResult() {
-      const res = document.getElementById("resInput").value.trim();
-      const payout = Number(document.getElementById("payoutInput").value || 0);
-      const budget = Number(document.getElementById("budgetInput").value || 10000);
-      if (!res) return;
-      const race = state.data[state.day].races[state.selectedIdx];
-      state.records.push({ title: race?.title || "レース", res, spend: budget, payout, hit: payout > 0 });
-      localStorage.setItem("keirin_ai_records_v3", JSON.stringify(state.records));
-      document.getElementById("resInput").value = "";
-      document.getElementById("payoutInput").value = "";
-      renderStats();
-    }
-
-    function renderStats() {
-      const totalR = state.records.length;
-      const hits = state.records.filter(r => r.hit).length;
-      const spend = state.records.reduce((a, b) => a + b.spend, 0);
-      const payout = state.records.reduce((a, b) => a + b.payout, 0);
-      const maxPay = state.records.reduce((a, b) => Math.max(a, b.payout), 0);
-      const profit = payout - spend;
-
-      document.getElementById("statHitRate").textContent = totalR ? `${Math.round((hits / totalR) * 100)}%` : "0%";
-      document.getElementById("statRoi").textContent = spend ? `${Math.round((payout / spend) * 100)}%` : "0%";
-      document.getElementById("statProfit").textContent = `${profit >= 0 ? "+" : ""}¥${profit.toLocaleString()}`;
-      document.getElementById("statMax").textContent = `¥${maxPay.toLocaleString()}`;
-    }
-
-    function renderAll() {
-      renderStats();
-      const races = state.data[state.day]?.races || BUILTIN_RACES.today;
-      const bar = document.getElementById("raceBar");
-      if (state.selectedIdx >= races.length) state.selectedIdx = 0;
-
-      bar.innerHTML = races.map((r, i) =>
-        `<button class="race-chip ${i === state.selectedIdx ? "active" : ""}" onclick="state.selectedIdx=${i};renderAll();">${r.title}</button>`
-      ).join("");
-
-      const currentRace = races[state.selectedIdx];
-      const ai = runKeirinAiEngine(currentRace);
-
-      document.getElementById("aiSummaryText").textContent = `${currentRace.title}｜${ai.summary}`;
-      document.getElementById("lineTags").innerHTML = ai.lineGroups.map((grp, i) =>
-        `<span class="line-tag">ライン${i + 1}: ${grp.map(p => `${p.car}${p.name}`).join(" - ")}</span>`
-      ).join("");
-
-      document.getElementById("playerTbody").innerHTML = ai.evaluated.map(p => `
-        <tr>
-          <td><span class="ball c${p.car}" style="width:18px;height:18px;font-size:10px;">${p.car}</span></td>
-          <td>${p.name}</td>
-          <td>${p.style}</td>
-          <td>${p.score.toFixed(1)}</td>
-          <td>${p.b || 0}</td>
-          <td style="color:var(--accent);font-weight:700;">${p.aiScore}</td>
-        </tr>
-      `).join("");
-
-      const budget = Math.max(600, Number(document.getElementById("budgetInput").value || 10000));
-      let hBudget = 0, aBudget = 0;
-      if (state.mode === "honmei") hBudget = budget;
-      else if (state.mode === "ana") aBudget = budget;
-      else { hBudget = Math.round(budget * 0.6); aBudget = budget - hBudget; }
-
-      const hList = allocate(ai.honmei, hBudget);
-      const aList = allocate(ai.ana, aBudget);
-
-      document.getElementById("honmeiCountBadge").textContent = `${hList.length}点`;
-      document.getElementById("anaCountBadge").textContent = `${aList.length}点`;
-
-      const renderItem = b => `
-        <div class="bet-item">
-          <div class="balls">${renderBalls(b.combo)}</div>
-          <div class="reason">${b.reason} <span class="ev-tag">EV:${b.ev}</span></div>
-          <div class="right-meta">
-            <div class="odds">${b.odds}倍</div>
-            <div>¥${b.amount.toLocaleString()}</div>
-            <div class="pay">戻¥${Math.round(b.amount * b.odds).toLocaleString()}</div>
+      filtered.forEach(r => {
+        const isDone = r.status === '確定済';
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between';
+        card.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <span class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center font-black text-sm text-cyan-400">${r.r}R</span>
+            <div>
+              <div class="text-xs font-bold">${venue.name} ${r.r}R <span class="text-slate-400 font-normal ml-1">${r.start_time || ''}</span></div>
+              <div class="mt-0.5">
+                ${isDone
+                  ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">確定済</span>`
+                  : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800">発売中</span>`}
+              </div>
+            </div>
           </div>
-        </div>
-      `;
-
-      document.getElementById("honmeiList").innerHTML = hList.map(renderItem).join("");
-      document.getElementById("anaList").innerHTML = aList.map(renderItem).join("");
+          <div class="text-right">
+            ${isDone
+              ? `<div class="text-sm font-black text-amber-400">${r.result_3tan}</div><div class="text-xs text-slate-300 font-bold">${r.payout}</div>`
+              : `<div class="text-xs text-slate-400">出走待機</div>`}
+          </div>
+        `;
+        list.appendChild(card);
+      });
     }
 
-    renderAll();
-    loadAllData();
+    loadData();
   </script>
 </body>
 </html>
