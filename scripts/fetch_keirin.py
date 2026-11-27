@@ -101,7 +101,7 @@ def parse_players_from_rows(rows):
 
     players.sort(key=lambda x: x["car"])
     lines = []
-    if len(players) >= 4:
+    if len(players) >= 3:
         fronts = [p for p in players if p["style"] == "逃" or p["b"] >= 3]
         if not fronts:
             fronts = players[:2]
@@ -137,7 +137,7 @@ def scrape_day_fast(target_dt, suffix):
         html = fetch_http(s)
         for h in re.findall(r'href=["\']([^"\']+)["\']', html):
             full = urljoin(s, h).split("#")[0].split("?")[0]
-            if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,20}/?$', full):
+            if "/racecard/" in full and re.search(r'/racecard/\d{8,20}/?$', full):
                 venue_pages.add(full)
                 if date_str in full:
                     base_urls.add(full)
@@ -149,18 +149,17 @@ def scrape_day_fast(target_dt, suffix):
             if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,20}/?$', full):
                 base_urls.add(full)
 
-    # 見つかった全開催URLの末尾2桁を 01〜12 に展開（末尾00対策）
     race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
         race_urls.add(clean + "/")
-        m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{10,18})\d{2}$', clean)
+        m = re.match(r'(https?://[^/]+/[a-z]+/racecard/\d{10,18})\d{2}$', clean)
         if m:
             prefix = m.group(1)
             for r_no in range(1, 13):
                 race_urls.add(f"{prefix}{r_no:02d}/")
 
-    def process_race(ru):
+    def process_race(idx, ru):
         r_html = fetch_http(ru)
         if not r_html:
             return None
@@ -173,12 +172,12 @@ def scrape_day_fast(target_dt, suffix):
             venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
         rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
-        race_num = int(rnum_m.group(1)) if rnum_m else 0
+        race_num = int(rnum_m.group(1)) if rnum_m else (idx + 1 if idx < 12 else 1)
         if not (1 <= race_num <= 12):
-            return None
+            race_num = 1
 
         players, lines = parse_players_from_rows(extract_rows_from_html(r_html))
-        if len(players) < 4:
+        if len(players) < 3:
             return None
         return {
             "venue": venue_name,
@@ -188,8 +187,9 @@ def scrape_day_fast(target_dt, suffix):
             "players": players
         }
 
+    sorted_candidates = sorted(list(race_urls))[:120]
     with ThreadPoolExecutor(max_workers=12) as ex:
-        futures = [ex.submit(process_race, u) for u in sorted(list(race_urls))]
+        futures = {ex.submit(process_race, i, u): i for i, u in enumerate(sorted_candidates)}
         for fut in as_completed(futures):
             item = fut.result()
             if not item:
@@ -214,7 +214,7 @@ def scrape_day_fast(target_dt, suffix):
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": [f"venues:{len(venue_pages)}", f"expanded:{len(race_urls)}", f"parsed:{len(races)}"],
+        "debug": [f"venues:{len(venue_pages)}", f"expanded:{len(sorted_candidates)}", f"parsed:{len(races)}"],
         "races": races
     }
 
