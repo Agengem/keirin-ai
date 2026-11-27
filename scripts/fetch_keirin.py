@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright
@@ -21,27 +22,46 @@ VENUES = {
 }
 
 
-def parse_players_from_page(page):
-    rows = page.evaluate("""() => {
-        return Array.from(document.querySelectorAll('tr')).map(tr =>
-            Array.from(tr.querySelectorAll('td, th')).map(el => el.innerText.replace(/\\s+/g, ' ').trim())
-        );
-    }""")
+def fetch_http(url):
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+            "Referer": "https://keirin.kdreams.jp/"
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as res:
+            raw = res.read()
+            for enc in ("utf-8", "euc-jp", "shift_jis"):
+                try:
+                    return raw.decode(enc)
+                except Exception:
+                    continue
+            return raw.decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def parse_players_from_html_or_rows(rows):
     players = []
     for cells in rows:
-        cells = [c for c in cells if c]
-        if len(cells) < 3:
+        cells = [re.sub(r'\s+', ' ', str(c)).strip() for c in cells if str(c).strip()]
+        if len(cells) < 2:
             continue
+
         car = None
         for c in cells[:3]:
-            if re.fullmatch(r'[1-9]', c):
-                car = int(c)
+            m_car = re.search(r'\b([1-9])\b', c)
+            if m_car and len(c) <= 4:
+                car = int(m_car.group(1))
                 break
         if not car or any(p["car"] == car for p in players):
             continue
 
         joined = " ".join(cells)
-        sc_m = re.search(r'\b([6-9]\d\.\d{2}|1[0-2]\d\.\d{2})\b', joined)
+        sc_m = re.search(r'\b([5-9]\d\.\d{1,2}|1[0-2]\d\.\d{1,2})\b', joined)
         score = float(sc_m.group(1)) if sc_m else round(82.0 + (9 - car) * 0.4, 2)
         style = next((c for c in cells if c in ["逃", "両", "追"]), "両")
         b_cnt = 0
@@ -53,7 +73,7 @@ def parse_players_from_page(page):
         name = ""
         for c in cells:
             if re.search(r'[\u4E00-\u9FFF]{2,}', c):
-                if not any(w in c for w in ["級", "班", "県", "府", "都", "道", "競輪", "車番", "選手", "得点", "脚質", "レース", "バンク", "予想", "平均"]):
+                if not any(w in c for w in ["級", "班", "県", "府", "都", "道", "競輪", "車番", "選手", "得点", "脚質", "レース", "バンク", "予想", "平均", "勝率"]):
                     cleaned = re.sub(r'[0-9A-Za-z\(\)（）/・\s].*', '', c).strip()
                     if 2 <= len(cleaned) <= 8:
                         name = cleaned
@@ -71,7 +91,7 @@ def parse_players_from_page(page):
 
     players.sort(key=lambda x: x["car"])
     lines = []
-    if len(players) >= 5:
+    if len(players) >= 4:
         fronts = [p for p in players if p["style"] == "逃" or p["b"] >= 3]
         if not fronts:
             fronts = players[:2]
@@ -91,65 +111,78 @@ def parse_players_from_page(page):
     return players, lines
 
 
-def collect_race_urls(page, target_dt):
-    date_str = target_dt.strftime("%Y%m%d")
-    race_urls = set()
-    seeds = [
-        f"https://keirin.jp/pc/top?date={date_str}",
-        "https://keirin.kdreams.jp/racecard/",
-        f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
-    ]
-
-    for seed in seeds:
-        try:
-            page.goto(seed, timeout=25000, wait_until="domcontentloaded")
-            page.wait_for_timeout(1500)
-            hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-            for h in hrefs:
-                clean = h.split("#")[0]
-                if "keirin.jp" in clean and ("syutsuba" in clean or "race" in clean) and date_str in clean:
-                    race_urls.add(clean)
-                elif "/racecard/" in clean and re.search(r'/racecard/\d{8,18}/?$', clean.split("?")[0]):
-                    base = clean.split("?")[0]
-                    if date_str in base:
-                        race_urls.add(base)
-                    else:
-                        try:
-                            page.goto(base, timeout=20000, wait_until="domcontentloaded")
-                            page.wait_for_timeout(700)
-                            sub = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-                            for sh in sub:
-                                sc = sh.split("#")[0]
-                                if "/racecard/" in sc and date_str in sc:
-                                    race_urls.add(sc)
-                        except Exception:
-                            pass
-        except Exception:
-            continue
-
-    return sorted(list(race_urls))
+def extract_rows_from_html(html):
+    raw_rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.S)
+    rows = []
+    for r in raw_rows:
+        cells = [re.sub(r'<[^>]+>', ' ', c) for c in re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', r, re.S)]
+        if cells:
+            rows.append(cells)
+    return rows
 
 
 def scrape_day(browser, target_dt, suffix):
+    date_str = target_dt.strftime("%Y%m%d")
     disp_date = target_dt.strftime("%Y/%m/%d")
-    page = browser.new_page()
     races = []
     seen = set()
+    candidate_urls = set()
 
+    # 1. HTTPで高速にリンク収集
+    for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
+        html = fetch_http(seed)
+        for h in re.findall(r'href=["\']([^"\']+)["\']', html):
+            full = urljoin(seed, h).split("#")[0]
+            if "/racecard/" in full and re.search(r'/racecard/\d{8,18}', full):
+                candidate_urls.add(full.split("?")[0])
+            elif "keirin.jp" in full and ("syutsuba" in full or "race" in full):
+                candidate_urls.add(full)
+
+    # 2. Playwrightでトップ＆開催場ページからも追加収集
+    page = browser.new_page()
     try:
-        urls = collect_race_urls(page, target_dt)
-        for ru in urls[:120]:
+        for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
+            try:
+                page.goto(seed, timeout=25000, wait_until="domcontentloaded")
+                page.wait_for_timeout(1200)
+                hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
+                for h in hrefs:
+                    clean = h.split("#")[0]
+                    if "/racecard/" in clean and re.search(r'/racecard/\d{8,18}', clean):
+                        candidate_urls.add(clean.split("?")[0])
+                    elif "keirin.jp" in clean and ("syutsuba" in clean or "race" in clean):
+                        candidate_urls.add(clean)
+            except Exception:
+                continue
+
+        # 開催場ページを開いてその日のレースURLを展開
+        venue_seeds = [u for u in sorted(list(candidate_urls)) if "/racecard/" in u and date_str not in u][:15]
+        for vu in venue_seeds:
+            try:
+                page.goto(vu, timeout=20000, wait_until="domcontentloaded")
+                page.wait_for_timeout(700)
+                sub = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
+                for su in sub:
+                    sc = su.split("#")[0]
+                    if "/racecard/" in sc and date_str in sc:
+                        candidate_urls.add(sc.split("?")[0])
+            except Exception:
+                continue
+
+        # 各レースページから出走表を抽出
+        for ru in sorted(list(candidate_urls))[:100]:
             try:
                 page.goto(ru, timeout=20000, wait_until="domcontentloaded")
-                page.wait_for_timeout(600)
+                page.wait_for_timeout(500)
                 title = page.title()
+                rows = page.evaluate("""() => Array.from(document.querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td, th')).map(el => el.innerText))""")
+                if not rows:
+                    rows = extract_rows_from_html(page.content())
+
                 venue_name = next((v for v in VENUES.values() if v in title), None)
                 if not venue_name:
                     m_code = re.search(r'(?:jorncd=|/racecard/)(\d{2})', ru)
-                    if m_code and m_code.group(1) in VENUES:
-                        venue_name = VENUES[m_code.group(1)]
-                    else:
-                        venue_name = "競輪"
+                    venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
                 rnum_m = re.search(r'(\d{1,2})R', title) or re.search(r'(?:raceno=|r)(\d{1,2})', ru, re.I)
                 race_num = int(rnum_m.group(1)) if rnum_m else 0
@@ -160,8 +193,8 @@ def scrape_day(browser, target_dt, suffix):
                 if key in seen:
                     continue
 
-                players, lines = parse_players_from_page(page)
-                if len(players) >= 5:
+                players, lines = parse_players_from_html_or_rows(rows)
+                if len(players) >= 4:
                     seen.add(key)
                     races.append({
                         "id": f"{suffix}_{venue_name}_{race_num}",
@@ -183,6 +216,7 @@ def scrape_day(browser, target_dt, suffix):
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
+        "debug": [f"candidates:{len(candidate_urls)}", f"parsed:{len(races)}"],
         "races": races
     }
 
