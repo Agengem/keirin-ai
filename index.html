@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KEIRIN AI PREDICTOR</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans p-3 pb-16">
+  <div class="max-w-2xl mx-auto space-y-3">
+
+    <!-- コンパクト開閉ヘッダー -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-[11px] font-bold text-cyan-400">KEIRIN AI ENGINE</div>
+          <h1 id="date-title" class="text-sm font-extrabold">データ読込中...</h1>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="text-right">
+            <span id="status-badge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700">待機中</span>
+            <div id="updated-at" class="text-[10px] text-slate-400 mt-0.5">--:--</div>
+          </div>
+          <button onclick="toggleHeader()" id="header-toggle-btn" class="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300">▲</button>
+        </div>
+      </div>
+
+      <div id="header-body" class="mt-2.5 pt-2.5 border-t border-slate-800 space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2">
+            <label class="text-slate-400">予算(円):</label>
+            <input id="budget-input" type="number" step="100" min="600" value="3000" onchange="recalcAll()"
+              class="w-24 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-right font-bold text-amber-300" />
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-slate-400">点数:</label>
+            <input id="points-range" type="range" min="6" max="15" value="10" oninput="syncPointsLabel(); recalcAll();" class="w-24" />
+            <span id="points-label" class="font-extrabold text-cyan-400 w-9 text-right">10点</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 開催場タブ -->
+    <div id="venue-tabs" class="flex flex-wrap gap-1.5"></div>
+
+    <!-- レース番号タブ (1R〜12R) -->
+    <div id="race-tabs" class="grid grid-cols-6 gap-1.5"></div>
+
+    <!-- 選択中レースの概要＆確定結果 -->
+    <div id="race-summary" class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+      <div>
+        <div id="race-title" class="text-sm font-extrabold">-- 1R</div>
+        <div id="race-meta" class="text-xs text-slate-400 mt-0.5">発走 --:--</div>
+      </div>
+      <div id="race-result-box" class="text-right">
+        <span class="text-xs text-slate-400">未確定</span>
+      </div>
+    </div>
+
+    <!-- 出走表＆並び入力 -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xs font-bold text-slate-200">出走表・並び（テキスト貼付で即反映）</h2>
+        <button onclick="applyPastedText()" class="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-xs font-bold">貼付反映</button>
+      </div>
+      <textarea id="paste-area" rows="2" placeholder="出走表テキストを貼り付けて「貼付反映」を押すと選手・得点が更新されます"
+        class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200"></textarea>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">ライン並び（例: 1-7-4 / 2-5 / 3-9-6）</label>
+        <input id="line-input" type="text" value="1-7-4 / 2-5 / 3-9-6" oninput="recalcAll()"
+          class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-cyan-300" />
+      </div>
+
+      <div id="players-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1"></div>
+    </div>
+
+    <!-- AI買い目（本命3連単：青 / 穴3連単：赤）＆100円単位資金配分 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="bg-slate-900 border border-blue-800/70 rounded-xl p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-extrabold text-blue-400">🔵 本命 3連単</span>
+          <span id="honmei-count" class="text-[11px] text-slate-400">0点</span>
+        </div>
+        <div id="honmei-list" class="space-y-1 text-xs"></div>
+      </div>
+
+      <div class="bg-slate-900 border border-rose-800/70 rounded-xl p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-extrabold text-rose-400">🔴 穴・万車券 3連単</span>
+          <span id="ana-count" class="text-[11px] text-slate-400">0点</span>
+        </div>
+        <div id="ana-list" class="space-y-1 text-xs"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let appData = null;
+    let vIdx = 0;
+    let rIdx = 0;
+    let currentPlayers = [];
+
+    function defaultPlayers() {
+      return [
+        { car: 1, name: "1番車", score: 92.5, style: "両" },
+        { car: 2, name: "2番車", score: 89.0, style: "逃" },
+        { car: 3, name: "3番車", score: 87.5, style: "追" },
+        { car: 4, name: "4番車", score: 85.0, style: "追" },
+        { car: 5, name: "5番車", score: 84.2, style: "追" },
+        { car: 6, name: "6番車", score: 82.0, style: "追" },
+        { car: 7, name: "7番車", score: 91.0, style: "逃" },
+      ];
+    }
+
+    function toggleHeader() {
+      const body = document.getElementById("header-body");
+      const btn = document.getElementById("header-toggle-btn");
+      const hidden = body.classList.toggle("hidden");
+      btn.textContent = hidden ? "▼" : "▲";
+    }
+
+    function syncPointsLabel() {
+      const pts = document.getElementById("points-range").value;
+      document.getElementById("points-label").textContent = pts + "点";
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch("./data.json?t=" + Date.now());
+        if (!res.ok) throw new Error("data.json 未生成");
+        appData = await res.json();
+
+        document.getElementById("date-title").textContent = appData.display_date || "本日開催";
+        document.getElementById("updated-at").textContent = "更新: " + (appData.updated_at || "");
+        const badge = document.getElementById("status-badge");
+        const count = (appData.venues || []).length;
+        badge.textContent = count > 0 ? `実データ取得済 (${count}場)` : "開催なし/取得待ち";
+      } catch (e) {
+        document.getElementById("date-title").textContent = "data.json 読込待ち";
+        document.getElementById("status-badge").textContent = "未取得";
+      }
+      renderVenues();
+      selectRace(0);
+    }
+
+    function renderVenues() {
+      const box = document.getElementById("venue-tabs");
+      box.innerHTML = "";
+      const venues = appData?.venues || [];
+      if (!venues.length) {
+        box.innerHTML = `<span class="text-xs text-slate-400">開催場データなし（Actions実行後に更新されます）</span>`;
+        return;
+      }
+      venues.forEach((v, i) => {
+        const active = i === vIdx;
+        const btn = document.createElement("button");
+        btn.textContent = v.name;
+        btn.className = active
+          ? "px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-extrabold text-xs"
+          : "px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs";
+        btn.onclick = () => {
+          vIdx = i;
+          renderVenues();
+          selectRace(0);
+        };
+        box.appendChild(btn);
+      });
+    }
+
+    function selectRace(index) {
+      rIdx = index;
+      const venue = appData?.venues?.[vIdx];
+      const races = venue?.races || [];
+      const raceTabs = document.getElementById("race-tabs");
+      raceTabs.innerHTML = "";
+
+      for (let i = 0; i < 12; i++) {
+        const rObj = races[i] || { r: i + 1, status: "発売中" };
+        const isSelected = i === rIdx;
+        const isDone = rObj.status === "確定済";
+        const btn = document.createElement("button");
+        btn.textContent = `${i + 1}R` + (isDone ? "✓" : "");
+        btn.className = isSelected
+          ? "py-1.5 rounded-lg bg-amber-400 text-slate-950 font-extrabold text-xs"
+          : isDone
+            ? "py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-800 text-emerald-300 font-bold text-xs"
+            : "py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 text-xs";
+        btn.onclick = () => selectRace(i);
+        raceTabs.appendChild(btn);
+      }
+
+      const cur = races[rIdx] || { r: rIdx + 1, start_time: "", status: "発売中", result_3tan: "", payout: "", players: [] };
+      document.getElementById("race-title").textContent = `${venue ? venue.name : "競輪"} ${cur.r}R`;
+      document.getElementById("race-meta").textContent = `発走 ${cur.start_time \vert{}\vert{} "--:--"} ／ 状態: ${cur.status}`;
+
+      const resBox = document.getElementById("race-result-box");
+      if (cur.status === "確定済" && cur.result_3tan) {
+        resBox.innerHTML = `
+          <div class="text-xs font-extrabold text-emerald-400">確定 3連単</div>
+          <div class="text-base font-black text-amber-300">${cur.result_3tan}</div>
+          <div class="text-xs text-slate-200 font-bold">${cur.payout || ""}</div>
+        `;
+      } else {
+        resBox.innerHTML = `<span class="text-xs text-slate-400">未確定</span>`;
+      }
+
+      currentPlayers = (cur.players && cur.players.length >= 3) ? cur.players : defaultPlayers();
+      renderPlayers();
+      recalcAll();
+    }
+
+    function applyPastedText() {
+      const raw = document.getElementById("paste-area").value.trim();
+      if (!raw) return;
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const parsed = [];
+
+      for (const line of lines) {
+        const cm = line.match(/(?:^|\s)([1-9])(?:\s|[.)]|番)/);
+        if (!cm) continue;
+        const car = parseInt(cm[1], 10);
+        if (parsed.some(p => p.car === car)) continue;
+        const sm = line.match(/(\d{2,3}\.\d{2})/);
+        const score = sm ? parseFloat(sm[1]) : 85.0;
+        const nm = line.replace(/(\d{2,3}\.\d{2}).*/, "").replace(/^.*?[1-9]\s*/, "").trim();
+        const name = (nm.split(/\s+/)[0] || `${car}番車`).slice(0, 10);
+        const style = line.includes("逃") ? "逃" : (line.includes("両") ? "両" : "追");
+        parsed.push({ car, name, score, style });
+      }
+
+      if (parsed.length >= 3) {
+        parsed.sort((a, b) => a.car - b.car);
+        currentPlayers = parsed.slice(0, 9);
+        renderPlayers();
+        recalcAll();
+      }
+    }
+
+    function renderPlayers() {
+      const grid = document.getElementById("players-grid");
+      grid.innerHTML = "";
+      currentPlayers.forEach((p, idx) => {
+        const div = document.createElement("div");
+        div.className = "bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-xs";
+        div.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 rounded-full bg-slate-800 text-cyan-300 font-black flex items-center justify-center">${p.car}</span>
+            <span class="font-bold">${p.name}</span>
+            <span class="text-[10px] px-1 rounded bg-slate-800 text-slate-300">${p.style}</span>
+          </div>
+          <input type="number" step="0.01" value="${p.score}" onchange="updateScore(${idx}, this.value)"
+            class="w-16 bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-right font-mono text-amber-300" />
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function updateScore(idx, val) {
+      const num = parseFloat(val);
+      if (!isNaN(num)) {
+        currentPlayers[idx].score = num;
+        recalcAll();
+      }
+    }
+
+    function allocateBudget(budget, weights) {
+      const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+      const units = Math.max(weights.length, Math.floor(budget / 100));
+      const raw = weights.map(w => Math.max(1, Math.floor((w / totalWeight) * units)));
+      let diff = units - raw.reduce((a, b) => a + b, 0);
+      let i = 0;
+      while (diff > 0) {
+        raw[i % raw.length] += 1;
+        diff--;
+        i++;
+      }
+      while (diff < 0 && raw.some(x => x > 1)) {
+        const idx = raw.findIndex(x => x > 1);
+        if (idx >= 0) { raw[idx] -= 1; diff++; } else break;
+      }
+      return raw.map(u => u * 100);
+    }
+
+    function recalcAll() {
+      const totalPoints = parseInt(document.getElementById("points-range").value, 10) || 10;
+      const budget = Math.max(600, parseInt(document.getElementById("budget-input").value, 10) || 3000);
+      const lineStr = document.getElementById("line-input").value || "";
+
+      const sorted = [...currentPlayers].sort((a, b) => b.score - a.score);
+      const topCars = sorted.slice(0, Math.min(5, sorted.length)).map(p => p.car);
+      const lineGroups = lineStr.split("/").map(g => g.split("-").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)));
+
+      const honmeiCombos = [];
+      const anaCombos = [];
+      const seen = new Set();
+
+      for (let i = 0; i < topCars.length; i++) {
+        for (let j = 0; j < topCars.length; j++) {
+          for (let k = 0; k < topCars.length; k++) {
+            if (i === j || j === k || i === k) continue;
+            const c = `${topCars[i]}-${topCars[j]}-${topCars[k]}`;
+            if (!seen.has(c)) {
+              seen.add(c);
+              honmeiCombos.push(c);
+            }
+          }
+        }
+      }
+
+      const allCars = currentPlayers.map(p => p.car);
+      for (const grp of lineGroups) {
+        if (grp.length >= 2) {
+          const c1 = `${grp[1]}-${grp[0]}-${allCars.find(x => !grp.includes(x)) \vert{}\vert{} grp[grp.length - 1]}`; if (!seen.has(c1)) { seen.add(c1); anaCombos.push(c1); } } } for (let i = allCars.length - 1; i >= 0; i--) { for (let j = 0; j < allCars.length; j++) { for (let k = 0; k < allCars.length; k++) { if (i === j \vert{}\vert{} j === k \vert{}\vert{} i === k) continue; const c = `${allCars[i]}-${allCars[j]}-${allCars[k]}`;
+            if (!seen.has(c)) { seen.add(c); anaCombos.push(c); }
+          }
+        }
+      }
+
+      const honmeiCount = Math.max(3, Math.ceil(totalPoints * 0.6));
+      const anaCount = Math.max(2, totalPoints - honmeiCount);
+
+      const hPick = honmeiCombos.slice(0, honmeiCount);
+      const aPick = anaCombos.slice(0, anaCount);
+
+      const hBudget = Math.round((budget * (hPick.length / totalPoints)) / 100) * 100;
+      const aBudget = Math.max(100, budget - hBudget);
+
+      const hAmounts = allocateBudget(hBudget, hPick.map((_, idx) => Math.max(1, hPick.length - idx)));
+      const aAmounts = allocateBudget(aBudget, aPick.map((_, idx) => Math.max(1, aPick.length - idx)));
+
+      document.getElementById("honmei-count").textContent = `${hPick.length}点 (計${hAmounts.reduce((a,b)=>a+b,0).toLocaleString()}円)`;
+      document.getElementById("ana-count").textContent = `${aPick.length}点 (計${aAmounts.reduce((a,b)=>a+b,0).toLocaleString()}円)`;
+
+      document.getElementById("honmei-list").innerHTML = hPick.map((c, idx) => `
+        <div class="flex items-center justify-between bg-slate-950/80 border border-blue-900/40 rounded px-2.5 py-1">
+          <span class="font-extrabold text-blue-300">${c}</span>
+          <span class="font-mono text-slate-200">${hAmounts[idx].toLocaleString()}円</span>
+        </div>
+      `).join("");
+
+      document.getElementById("ana-list").innerHTML = aPick.map((c, idx) => `
+        <div class="flex items-center justify-between bg-slate-950/80 border border-rose-900/40 rounded px-2.5 py-1">
+          <span class="font-extrabold text-rose-300">${c}</span>
+          <span class="font-mono text-slate-200
