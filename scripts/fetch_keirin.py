@@ -1,3 +1,4 @@
+import http.cookiejar
 import json
 import os
 import re
@@ -8,6 +9,15 @@ from urllib.parse import urljoin
 
 JST = timezone(timedelta(hours=9))
 now_jst = datetime.now(JST)
+
+cj = http.cookiejar.CookieJar()
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+opener.addheaders = [
+    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"),
+    ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    ("Accept-Language", "ja,en-US;q=0.9,en;q=0.8"),
+    ("Referer", "https://keirin.kdreams.jp/")
+]
 
 VENUES = {
     "11": "函館", "12": "青森", "13": "いわき平", "21": "弥彦", "22": "前橋",
@@ -23,16 +33,8 @@ VENUES = {
 
 
 def fetch_http(url):
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-            "Referer": "https://keirin.kdreams.jp/"
-        }
-    )
     try:
-        with urllib.request.urlopen(req, timeout=12) as res:
+        with opener.open(url, timeout=12) as res:
             raw = res.read()
             for enc in ("utf-8", "euc-jp", "shift_jis"):
                 try:
@@ -131,6 +133,9 @@ def scrape_day_fast(target_dt, suffix):
     venue_pages = set()
     base_urls = set()
 
+    # まずトップを叩いてCookieを取得
+    fetch_http("https://keirin.kdreams.jp/")
+
     seeds = [
         "https://keirin.kdreams.jp/racecard/",
         f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
@@ -155,12 +160,15 @@ def scrape_day_fast(target_dt, suffix):
             if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,22}/?$', full):
                 base_urls.add(full)
 
+    # Kドリームス正規URL構造: [場2桁][日付8桁][開催2桁][レース2桁(01〜12)][00]
     race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
-        if re.search(r'/racecard/\d{10,22}$', clean):
+        m16 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d{12})\d{2}(\d{2})$', clean)
+        if m16:
             for r_no in range(1, 13):
-                race_urls.add(re.sub(r'\d{2}$', f'{r_no:02d}', clean) + "/")
+                race_urls.add(f"{m16.group(1)}{r_no:02d}{m16.group(2)}/")
+                race_urls.add(f"{m16.group(1)}{r_no:02d}00/")
         else:
             race_urls.add(clean + "/")
 
@@ -171,7 +179,7 @@ def scrape_day_fast(target_dt, suffix):
             return None, None
         r_html = fetch_http(ru)
         if not r_html:
-            return None, f"nohtml:{ru[-20:]}"
+            return None, None
         title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
         title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
 
@@ -180,7 +188,7 @@ def scrape_day_fast(target_dt, suffix):
             m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
             venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
-        rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
+        rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})\d{2}/?$', ru)
         race_num = int(rnum_m.group(1)) if rnum_m else 0
         players, lines, r_cnt = parse_players_from_html(r_html)
         info = f"len={len(r_html)}|tr={r_cnt}|p={len(players)}|r={race_num}|{title[:16]}"
@@ -196,8 +204,8 @@ def scrape_day_fast(target_dt, suffix):
             "players": players
         }, f"OK:{info}"
 
-    sorted_candidates = sorted(list(race_urls))[:160]
-    with ThreadPoolExecutor(max_workers=16) as ex:
+    sorted_candidates = sorted(list(race_urls))[:180]
+    with ThreadPoolExecutor(max_workers=12) as ex:
         futures = [ex.submit(process_race, u) for u in sorted_candidates]
         for fut in as_completed(futures):
             item, info = fut.result()
