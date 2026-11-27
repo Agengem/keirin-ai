@@ -71,14 +71,21 @@ def get_venues_today() -> list:
 
 
 def parse_result_from_soup(soup: BeautifulSoup):
+    # テーブルやテキストから3連単と払戻金を抽出
+    for tr in soup.find_all("tr"):
+        row_txt = tr.get_text(" ", strip=True)
+        if "3連単" in row_txt:
+            m_combo = re.search(r"([1-9])\s*[-－=]\s*([1-9])\s*[-－=]\s*([1-9])", row_txt)
+            m_pay = re.search(r"([0-9,]+)\s*円", row_txt)
+            if m_combo:
+                combo = f"{m_combo.group(1)}-{m_combo.group(2)}-{m_combo.group(3)}"
+                payout = f"{m_pay.group(1)}円" if m_pay else ""
+                return combo, payout
+
     text = soup.get_text(" ", strip=True)
     m3 = re.search(r"3連単[^0-9]*([1-9])\s*[-－=]\s*([1-9])\s*[-－=]\s*([1-9])\s*([0-9,]+)\s*円", text)
     if m3:
         return f"{m3.group(1)}-{m3.group(2)}-{m3.group(3)}", f"{m3.group(4)}円"
-
-    m3_alt = re.search(r"\b([1-9]-[1-9]-[1-9])\b\s*([0-9,]+)\s*円", text)
-    if m3_alt:
-        return m3_alt.group(1), f"{m3_alt.group(2)}円"
 
     return "", ""
 
@@ -89,8 +96,9 @@ def parse_players_from_soup(soup: BeautifulSoup) -> list:
         cells = [c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"]) if c.get_text(" ", strip=True)]
         if len(cells) < 2:
             continue
+
         car_num = None
-        for idx in (0, 1):
+        for idx in (0, 1, 2):
             if idx < len(cells) and re.fullmatch(r"[1-9]", cells[idx]):
                 car_num = int(cells[idx])
                 break
@@ -98,8 +106,14 @@ def parse_players_from_soup(soup: BeautifulSoup) -> list:
             continue
 
         row_str = " ".join(cells)
-        name_match = re.search(r"([一-龠々ぁ-んァ-ヶ・]{2,12})", " ".join(cells[1:4]))
-        name = name_match.group(1) if name_match else f"{car_num}番車"
+        # 選手名らしき日本語表記を抽出
+        name = f"{car_num}番車"
+        for cell in cells[1:5]:
+            cleaned = re.sub(r"\d+\.\d+|\([^)]*\)|\[[^\]]*\]", "", cell).strip()
+            nm = re.search(r"([一-龠々ぁ-んァ-ヶ]{2,6}(?:\s*[一-龠々ぁ-んァ-ヶ]{1,5})?)", cleaned)
+            if nm and not re.search(r"(競走|得点|脚質|期別|府県|予想|印)", nm.group(1)):
+                name = nm.group(1).replace(" ", "")
+                break
 
         score_match = re.search(r"\b(\d{2,3}\.\d{2})\b", row_str)
         score = float(score_match.group(1)) if score_match else 80.0
@@ -124,11 +138,19 @@ def parse_players_from_soup(soup: BeautifulSoup) -> list:
 def fetch_venue_races(slug: str, code: str) -> list:
     races = []
     list_url = f"https://keirin.kdreams.jp/{slug}/racecard/{code}{today_str}/"
+    res_list_url = f"https://keirin.kdreams.jp/{slug}/result/{code}{today_str}/"
+
     list_soup = None
+    res_list_soup = None
     try:
         list_soup = BeautifulSoup(fetch_html(list_url), "lxml")
     except Exception as e:
         print(f"Racecard list error ({slug}): {e}")
+
+    try:
+        res_list_soup = BeautifulSoup(fetch_html(res_list_url), "lxml")
+    except Exception:
+        pass
 
     for r_num in range(1, 13):
         r_str = f"{r_num:02d}"
@@ -149,22 +171,39 @@ def fetch_venue_races(slug: str, code: str) -> list:
                     if tm:
                         start_time = tm.group(1)
 
-        res_url = f"https://keirin.kdreams.jp/{slug}/result/{race_id}/"
-        try:
-            res_soup = BeautifulSoup(fetch_html(res_url), "lxml")
-            combo, pay = parse_result_from_soup(res_soup)
-            if combo:
-                status = "確定済"
-                result_3tan = combo
-                payout = pay
-        except Exception:
-            pass
+        # 結果一覧から確定レースの3連単・払戻をまず確認
+        if res_list_soup:
+            rlink = res_list_soup.find("a", href=re.compile(race_id))
+            if rlink:
+                rcont = rlink.find_parent(["tr", "li", "div"])
+                if rcont:
+                    rtxt = rcont.get_text(" ", strip=True)
+                    mc = re.search(r"([1-9])\s*[-－=]\s*([1-9])\s*[-－=]\s*([1-9])", rtxt)
+                    mp = re.search(r"([0-9,]+)\s*円", rtxt)
+                    if mc:
+                        status = "確定済"
+                        result_3tan = f"{mc.group(1)}-{mc.group(2)}-{mc.group(3)}"
+                        payout = f"{mp.group(1)}円" if mp else ""
 
+        # 確定していなければ個別結果ページも確認
+        if not result_3tan:
+            res_url = f"https://keirin.kdreams.jp/{slug}/result/{race_id}/"
+            try:
+                res_soup = BeautifulSoup(fetch_html(res_url), "lxml")
+                combo, pay = parse_result_from_soup(res_soup)
+                if combo:
+                    status = "確定済"
+                    result_3tan = combo
+                    payout = pay
+            except Exception:
+                pass
+
+        # 出走表ページから発走時刻と選手情報を取得
         rc_url = f"https://keirin.kdreams.jp/{slug}/racecard/{race_id}/"
         try:
             rc_soup = BeautifulSoup(fetch_html(rc_url), "lxml")
             if not start_time:
-                tm = re.search(r"発走[^\d]*([012]?\d:\d{2})", rc_soup.get_text(" ", strip=True))
+                tm = re.search(r"(?:発走|締切)[^\d]*([012]?\d:\d{2})", rc_soup.get_text(" ", strip=True))
                 if tm:
                     start_time = tm.group(1)
             players = parse_players_from_soup(rc_soup)
