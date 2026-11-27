@@ -44,7 +44,7 @@ def fetch_http(url):
         return ""
 
 
-def parse_players_from_html_or_rows(rows):
+def parse_players_from_rows(rows):
     players = []
     for cells in rows:
         cells = [re.sub(r'\s+', ' ', str(c)).strip() for c in cells if str(c).strip()]
@@ -126,90 +126,102 @@ def scrape_day(browser, target_dt, suffix):
     disp_date = target_dt.strftime("%Y/%m/%d")
     races = []
     seen = set()
-    candidate_urls = set()
-    debug_info = []
+    venue_pages = set()
+    race_urls = set()
 
-    for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
-        html = fetch_http(seed)
+    # 1. Kドリームス開催一覧・月間スケジュールから全開催場URLを収集
+    seeds = [
+        "https://keirin.kdreams.jp/racecard/",
+        f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
+    ]
+    for s in seeds:
+        html = fetch_http(s)
         for h in re.findall(r'href=["\']([^"\']+)["\']', html):
-            full = urljoin(seed, h).split("#")[0]
-            if "/racecard/" in full and re.search(r'/racecard/\d{8,18}', full):
-                candidate_urls.add(full.split("?")[0])
-            elif "keirin.jp" in full and ("syutsuba" in full or "race" in full):
-                candidate_urls.add(full)
+            full = urljoin(s, h).split("#")[0].split("?")[0]
+            if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
+                venue_pages.add(full)
 
     page = browser.new_page()
     try:
-        for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
+        for s in seeds:
             try:
-                page.goto(seed, timeout=25000, wait_until="domcontentloaded")
+                page.goto(s, timeout=25000, wait_until="domcontentloaded")
                 page.wait_for_timeout(1200)
                 hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
                 for h in hrefs:
-                    clean = h.split("#")[0]
-                    if "/racecard/" in clean and re.search(r'/racecard/\d{8,18}', clean):
-                        candidate_urls.add(clean.split("?")[0])
-                    elif "keirin.jp" in clean and ("syutsuba" in clean or "race" in clean):
-                        candidate_urls.add(clean)
+                    full = h.split("#")[0].split("?")[0]
+                    if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
+                        venue_pages.add(full)
             except Exception:
                 continue
 
-        venue_seeds = [u for u in sorted(list(candidate_urls)) if "/racecard/" in u and date_str not in u][:15]
-        for vu in venue_seeds:
+        # 2. 各開催場ページを開き、その中の1R〜12Rリンクをすべて収集
+        for vp in sorted(list(venue_pages)):
+            if date_str in vp and re.search(r'/racecard/\d{14,18}/?$', vp):
+                race_urls.add(vp)
             try:
-                page.goto(vu, timeout=20000, wait_until="domcontentloaded")
+                page.goto(vp, timeout=20000, wait_until="domcontentloaded")
                 page.wait_for_timeout(700)
                 sub = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-                for su in sub:
-                    sc = su.split("#")[0]
-                    if "/racecard/" in sc and date_str in sc:
-                        candidate_urls.add(sc.split("?")[0])
+                for sh in sub:
+                    clean = sh.split("#")[0].split("?")[0]
+                    if "/racecard/" in clean and date_str in clean and re.search(r'/racecard/\d{12,18}/?$', clean):
+                        race_urls.add(clean)
             except Exception:
                 continue
 
-        sorted_urls = sorted(list(candidate_urls))[:30]
-        debug_info.append(f"urls:{len(sorted_urls)}")
+        # 3. 見つかったベースURLから01R〜12Rを確実に補完展開
+        prefixes = set()
+        for ru in list(race_urls):
+            m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{12,14})\d{2}/?$', ru)
+            if m:
+                prefixes.add(m.group(1))
+        for pref in prefixes:
+            for r_no in range(1, 13):
+                race_urls.add(f"{pref}{r_no:02d}/")
 
-        for idx, ru in enumerate(sorted_urls):
+        # 4. 全レースの出走表を一気に取得
+        for ru in sorted(list(race_urls)):
             try:
-                page.goto(ru, timeout=20000, wait_until="domcontentloaded")
-                page.wait_for_timeout(500)
-                title = re.sub(r'\s+', ' ', page.title() or "").strip()
-                rows = page.evaluate("""() => Array.from(document.querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td, th')).map(el => el.innerText))""")
-                if not rows:
-                    rows = extract_rows_from_html(page.content())
+                html = fetch_http(ru)
+                if not html or "出走表" not in html:
+                    page.goto(ru, timeout=15000, wait_until="domcontentloaded")
+                    page.wait_for_timeout(400)
+                    html = page.content()
+
+                title_m = re.search(r'<title>(.*?)</title>', html, re.S)
+                title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
+                if disp_date not in title and f"{target_dt.month}月{target_dt.day}日" not in title:
+                    continue
 
                 venue_name = next((v for v in VENUES.values() if v in title), None)
                 if not venue_name:
-                    m_code = re.search(r'(?:jorncd=|/racecard/)(\d{2})', ru)
+                    m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
                     venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
-                rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(?:raceno=|r)(\d{1,2})', ru, re.I)
-                race_num = int(rnum_m.group(1)) if rnum_m else (idx + 1 if idx < 12 else 0)
-
-                players, lines = parse_players_from_html_or_rows(rows)
-                if idx < 5:
-                    debug_info.append(f"{idx}:{venue_name}/{race_num}R/p={len(players)}/{title[:18]}")
-
-                if not (1 <= race_num <= 12) or len(players) < 3:
+                rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
+                race_num = int(rnum_m.group(1)) if rnum_m else 0
+                if not (1 <= race_num <= 12):
                     continue
 
                 key = f"{venue_name}_{race_num}"
                 if key in seen:
                     continue
-                seen.add(key)
-                races.append({
-                    "id": f"{suffix}_{venue_name}_{race_num}",
-                    "date": disp_date,
-                    "venue": venue_name,
-                    "raceNum": race_num,
-                    "title": f"{venue_name} {race_num}R",
-                    "lines": lines,
-                    "players": players
-                })
-            except Exception as e:
-                if idx < 5:
-                    debug_info.append(f"{idx}:err={str(e)[:25]}")
+
+                rows = extract_rows_from_html(html)
+                players, lines = parse_players_from_rows(rows)
+                if len(players) >= 5:
+                    seen.add(key)
+                    races.append({
+                        "id": f"{suffix}_{venue_name}_{race_num}",
+                        "date": disp_date,
+                        "venue": venue_name,
+                        "raceNum": race_num,
+                        "title": f"{venue_name} {race_num}R",
+                        "lines": lines,
+                        "players": players
+                    })
+            except Exception:
                 continue
     finally:
         page.close()
@@ -220,7 +232,7 @@ def scrape_day(browser, target_dt, suffix):
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": debug_info,
+        "debug": [f"venues:{len(venue_pages)}", f"urls:{len(race_urls)}", f"parsed:{len(races)}"],
         "races": races
     }
 
