@@ -63,14 +63,12 @@ def parse_players_from_html(html):
         if len(cells) < 3:
             continue
 
-        # 車番（1〜9）の抽出：枠番・車番が並ぶため1〜2桁の数字から車番を特定
         car = None
         num_candidates = []
         for c in cells[:4]:
             if re.fullmatch(r'[1-9]', c):
                 num_candidates.append(int(c))
         if len(num_candidates) >= 2:
-            # 枠番・車番の2列がある場合は2番目が車番
             car = num_candidates[1]
         elif len(num_candidates) == 1:
             car = num_candidates[0]
@@ -80,7 +78,6 @@ def parse_players_from_html(html):
 
         joined = " ".join(cells)
 
-        # 選手名：漢字2〜5文字（スペース区切りの姓・名も結合して取得）
         name = ""
         for c in cells:
             if any(w in c for w in ["級", "班", "県", "府", "都", "道", "競輪", "車番", "選手", "得点", "脚質", "レース", "バンク", "予想", "平均", "勝率", "年齢", "期別"]):
@@ -95,15 +92,12 @@ def parse_players_from_html(html):
         if not name:
             continue
 
-        # 競走得点（例: 85.20, 102.45）
         sc_m = re.search(r'\b([5-9]\d\.\d{1,2}|1[0-2]\d\.\d{1,2})\b', joined)
         score = float(sc_m.group(1)) if sc_m else round(82.0 + (9 - car) * 0.4, 2)
 
-        # 脚質（逃・両・追）
         style_m = re.search(r'(?:^|\s)(逃|両|追)(?:\s|$)', joined)
         style = style_m.group(1) if style_m else "両"
 
-        # B回数
         b_cnt = 0
         for c in cells[4:]:
             if re.fullmatch(r'\d{1,2}', c) and int(c) <= 35:
@@ -163,9 +157,7 @@ def scrape_day_fast(target_dt, suffix):
                 if date_str in full:
                     base_urls.add(full)
 
-    # 全会場ページから対象日のURLを収集＋日付置換でも補完
     for vp in sorted(list(venue_pages))[:30]:
-        # 会場スラッグと会場コードが取れれば対象日のベースURLも直接構築
         m_v = re.match(r'(https?://[^/]+/[^/]+/racecard/(\d{2}))\d{8}(\d{4,6})/?$', vp.rstrip("/"))
         if m_v:
             base_urls.add(f"{m_v.group(1)}{date_str}010001/")
@@ -177,7 +169,6 @@ def scrape_day_fast(target_dt, suffix):
             if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,22}/?$', full):
                 base_urls.add(full)
 
-    # 見つかった全ベースURLから 01R〜12R を展開
     race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
@@ -189,15 +180,13 @@ def scrape_day_fast(target_dt, suffix):
             race_urls.add(clean + "/")
 
     def process_race(ru):
+        if date_str not in ru:
+            return None
         r_html = fetch_http(ru)
         if not r_html:
             return None
         title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
         title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
-
-        # 対象日以外のページを除外
-        if disp_date not in title and f"{target_dt.month}月{target_dt.day}日" not in title:
-            return None
 
         venue_name = next((v for v in VENUES.values() if v in title), None)
         if not venue_name:
