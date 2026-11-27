@@ -128,6 +128,7 @@ def scrape_day_fast(target_dt, suffix):
     seen = set()
     venue_pages = set()
     base_urls = set()
+    sample_logs = []
 
     seeds = [
         "https://keirin.kdreams.jp/racecard/",
@@ -137,7 +138,7 @@ def scrape_day_fast(target_dt, suffix):
         html = fetch_http(s)
         for h in re.findall(r'href=["\']([^"\']+)["\']', html):
             full = urljoin(s, h).split("#")[0].split("?")[0]
-            if "/racecard/" in full and re.search(r'/racecard/\d{8,20}/?$', full):
+            if "/racecard/" in full and re.search(r'/racecard/\d{8,22}/?$', full):
                 venue_pages.add(full)
                 if date_str in full:
                     base_urls.add(full)
@@ -146,23 +147,29 @@ def scrape_day_fast(target_dt, suffix):
         vh = fetch_http(vp)
         for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
             full = urljoin(vp, h).split("#")[0].split("?")[0]
-            if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,20}/?$', full):
+            if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,22}/?$', full):
                 base_urls.add(full)
 
+    # Kドリームスの開催URL構造（会場2桁+日付8桁+開催回2桁+日目2桁+レース2桁 = 16桁）に合わせて01〜12Rを展開
     race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
         race_urls.add(clean + "/")
-        m = re.match(r'(https?://[^/]+/[a-z]+/racecard/\d{10,18})\d{2}$', clean)
-        if m:
-            prefix = m.group(1)
+        # パターンA: 16桁（末尾2桁がレース番号 00〜12）
+        m16 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d{14})\d{2}$', clean)
+        if m16:
             for r_no in range(1, 13):
-                race_urls.add(f"{prefix}{r_no:02d}/")
+                race_urls.add(f"{m16.group(1)}{r_no:02d}/")
+        # パターンB: 14桁（開催回+日目までで終わっている場合）
+        m14 = re.match(r'(https?://[^/]+/[^/]+/racecard/\d{14})$', clean)
+        if m14:
+            for r_no in range(1, 13):
+                race_urls.add(f"{m14.group(1)}{r_no:02d}/")
 
     def process_race(idx, ru):
         r_html = fetch_http(ru)
         if not r_html:
-            return None
+            return None, f"empty:{ru[-22:]}"
         title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
         title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
 
@@ -172,26 +179,28 @@ def scrape_day_fast(target_dt, suffix):
             venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
         rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
-        race_num = int(rnum_m.group(1)) if rnum_m else (idx + 1 if idx < 12 else 1)
+        race_num = int(rnum_m.group(1)) if rnum_m else 0
         if not (1 <= race_num <= 12):
-            race_num = 1
+            return None, f"r0:{ru[-22:]}|{title[:15]}"
 
         players, lines = parse_players_from_rows(extract_rows_from_html(r_html))
         if len(players) < 3:
-            return None
+            return None, f"p{len(players)}:{ru[-22:]}|{title[:15]}"
         return {
             "venue": venue_name,
             "raceNum": race_num,
             "title": f"{venue_name} {race_num}R",
             "lines": lines,
             "players": players
-        }
+        }, f"ok:{venue_name}{race_num}R"
 
-    sorted_candidates = sorted(list(race_urls))[:120]
+    sorted_candidates = sorted(list(race_urls))[:140]
     with ThreadPoolExecutor(max_workers=12) as ex:
         futures = {ex.submit(process_race, i, u): i for i, u in enumerate(sorted_candidates)}
         for fut in as_completed(futures):
-            item = fut.result()
+            item, log_msg = fut.result()
+            if len(sample_logs) < 8:
+                sample_logs.append(log_msg)
             if not item:
                 continue
             key = f"{item['venue']}_{item['raceNum']}"
@@ -214,7 +223,13 @@ def scrape_day_fast(target_dt, suffix):
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": [f"venues:{len(venue_pages)}", f"expanded:{len(sorted_candidates)}", f"parsed:{len(races)}"],
+        "debug": [
+            f"venues:{len(venue_pages)}",
+            f"base:{len(base_urls)}",
+            f"expanded:{len(sorted_candidates)}",
+            f"parsed:{len(races)}",
+            *sample_logs
+        ],
         "races": races
     }
 
