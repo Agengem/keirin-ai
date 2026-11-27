@@ -4,7 +4,6 @@ import re
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
-from playwright.sync_api import sync_playwright
 
 JST = timezone(timedelta(hours=9))
 now_jst = datetime.now(JST)
@@ -32,7 +31,7 @@ def fetch_http(url):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as res:
+        with urllib.request.urlopen(req, timeout=12) as res:
             raw = res.read()
             for enc in ("utf-8", "euc-jp", "shift_jis"):
                 try:
@@ -42,6 +41,16 @@ def fetch_http(url):
             return raw.decode("utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+def extract_rows_from_html(html):
+    raw_rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.S)
+    rows = []
+    for r in raw_rows:
+        cells = [re.sub(r'<[^>]+>', ' ', c) for c in re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', r, re.S)]
+        if cells:
+            rows.append(cells)
+    return rows
 
 
 def parse_players_from_rows(rows):
@@ -111,139 +120,99 @@ def parse_players_from_rows(rows):
     return players, lines
 
 
-def extract_rows_from_html(html):
-    raw_rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.S)
-    rows = []
-    for r in raw_rows:
-        cells = [re.sub(r'<[^>]+>', ' ', c) for c in re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', r, re.S)]
-        if cells:
-            rows.append(cells)
-    return rows
-
-
-def scrape_day(browser, target_dt, suffix):
+def scrape_day_fast(target_dt, suffix):
     date_str = target_dt.strftime("%Y%m%d")
     disp_date = target_dt.strftime("%Y/%m/%d")
     races = []
     seen = set()
     venue_pages = set()
     race_urls = set()
+    debug_info = []
 
-    # 1. Kドリームス開催一覧・月間スケジュールから全開催場URLを収集
-    seeds = [
-        "https://keirin.kdreams.jp/racecard/",
-        f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
-    ]
-    for s in seeds:
-        html = fetch_http(s)
-        for h in re.findall(r'href=["\']([^"\']+)["\']', html):
-            full = urljoin(s, h).split("#")[0].split("?")[0]
-            if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
-                venue_pages.add(full)
-
-    page = browser.new_page()
     try:
+        seeds = [
+            "https://keirin.kdreams.jp/racecard/",
+            f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
+        ]
         for s in seeds:
-            try:
-                page.goto(s, timeout=25000, wait_until="domcontentloaded")
-                page.wait_for_timeout(1200)
-                hrefs = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-                for h in hrefs:
-                    full = h.split("#")[0].split("?")[0]
-                    if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
-                        venue_pages.add(full)
-            except Exception:
-                continue
+            html = fetch_http(s)
+            for h in re.findall(r'href=["\']([^"\']+)["\']', html):
+                full = urljoin(s, h).split("#")[0].split("?")[0]
+                if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
+                    venue_pages.add(full)
+                    if date_str in full and re.search(r'/racecard/\d{12,18}/?$', full):
+                        race_urls.add(full)
 
-        # 2. 各開催場ページを開き、その中の1R〜12Rリンクをすべて収集
-        for vp in sorted(list(venue_pages)):
-            if date_str in vp and re.search(r'/racecard/\d{14,18}/?$', vp):
-                race_urls.add(vp)
-            try:
-                page.goto(vp, timeout=20000, wait_until="domcontentloaded")
-                page.wait_for_timeout(700)
-                sub = page.evaluate("""() => Array.from(document.querySelectorAll('a')).map(a => a.href)""")
-                for sh in sub:
-                    clean = sh.split("#")[0].split("?")[0]
-                    if "/racecard/" in clean and date_str in clean and re.search(r'/racecard/\d{12,18}/?$', clean):
-                        race_urls.add(clean)
-            except Exception:
-                continue
+        for vp in sorted(list(venue_pages))[:25]:
+            vh = fetch_http(vp)
+            for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
+                full = urljoin(vp, h).split("#")[0].split("?")[0]
+                if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{12,18}/?$', full):
+                    race_urls.add(full)
 
-        # 3. 見つかったベースURLから01R〜12Rを確実に補完展開
         prefixes = set()
         for ru in list(race_urls):
             m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{12,14})\d{2}/?$', ru)
             if m:
                 prefixes.add(m.group(1))
-        for pref in prefixes:
+        for pref in list(prefixes)[:15]:
             for r_no in range(1, 13):
                 race_urls.add(f"{pref}{r_no:02d}/")
 
-        # 4. 全レースの出走表を一気に取得
-        for ru in sorted(list(race_urls)):
-            try:
-                html = fetch_http(ru)
-                if not html or "出走表" not in html:
-                    page.goto(ru, timeout=15000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(400)
-                    html = page.content()
+        debug_info = [f"venues:{len(venue_pages)}", f"urls:{len(race_urls)}"]
 
-                title_m = re.search(r'<title>(.*?)</title>', html, re.S)
-                title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
-                if disp_date not in title and f"{target_dt.month}月{target_dt.day}日" not in title:
-                    continue
-
-                venue_name = next((v for v in VENUES.values() if v in title), None)
-                if not venue_name:
-                    m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
-                    venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
-
-                rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
-                race_num = int(rnum_m.group(1)) if rnum_m else 0
-                if not (1 <= race_num <= 12):
-                    continue
-
-                key = f"{venue_name}_{race_num}"
-                if key in seen:
-                    continue
-
-                rows = extract_rows_from_html(html)
-                players, lines = parse_players_from_rows(rows)
-                if len(players) >= 5:
-                    seen.add(key)
-                    races.append({
-                        "id": f"{suffix}_{venue_name}_{race_num}",
-                        "date": disp_date,
-                        "venue": venue_name,
-                        "raceNum": race_num,
-                        "title": f"{venue_name} {race_num}R",
-                        "lines": lines,
-                        "players": players
-                    })
-            except Exception:
+        for ru in sorted(list(race_urls))[:120]:
+            r_html = fetch_http(ru)
+            if not r_html:
                 continue
-    finally:
-        page.close()
+            title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
+            title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
+
+            venue_name = next((v for v in VENUES.values() if v in title), None)
+            if not venue_name:
+                m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
+                venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
+
+            rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
+            race_num = int(rnum_m.group(1)) if rnum_m else 0
+            if not (1 <= race_num <= 12):
+                continue
+
+            key = f"{venue_name}_{race_num}"
+            if key in seen:
+                continue
+
+            players, lines = parse_players_from_rows(extract_rows_from_html(r_html))
+            if len(players) >= 4:
+                seen.add(key)
+                races.append({
+                    "id": f"{suffix}_{venue_name}_{race_num}",
+                    "date": disp_date,
+                    "venue": venue_name,
+                    "raceNum": race_num,
+                    "title": f"{venue_name} {race_num}R",
+                    "lines": lines,
+                    "players": players
+                })
+    except Exception as e:
+        debug_info.append(f"err:{str(e)[:40]}")
 
     races.sort(key=lambda x: (x["venue"], x["raceNum"]))
+    debug_info.append(f"parsed:{len(races)}")
     return {
         "date": disp_date,
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": [f"venues:{len(venue_pages)}", f"urls:{len(race_urls)}", f"parsed:{len(races)}"],
+        "debug": debug_info,
         "races": races
     }
 
 
 def main():
     os.makedirs("data", exist_ok=True)
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        today_data = scrape_day(browser, now_jst, "today")
-        tomorrow_data = scrape_day(browser, now_jst + timedelta(days=1), "tomorrow")
-        browser.close()
+    today_data = scrape_day_fast(now_jst, "today")
+    tomorrow_data = scrape_day_fast(now_jst + timedelta(days=1), "tomorrow")
 
     with open("data/today.json", "w", encoding="utf-8") as f:
         json.dump(today_data, f, ensure_ascii=False, indent=2)
