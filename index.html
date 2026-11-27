@@ -14,26 +14,26 @@
       <div class="flex items-center justify-between">
         <div>
           <div class="text-[11px] font-bold text-cyan-400">KEIRIN AI ENGINE</div>
-          <h1 id="date-title" class="text-sm font-extrabold">データ読込中...</h1>
+          <h1 id="date-title" class="text-sm font-extrabold">2026年11月27日(Fri)</h1>
         </div>
         <div class="flex items-center gap-2">
           <div class="text-right">
-            <span id="status-badge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700">待機中</span>
-            <div id="updated-at" class="text-[10px] text-slate-400 mt-0.5">--:--</div>
+            <span id="status-badge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">起動済</span>
+            <div id="updated-at" class="text-[10px] text-slate-400 mt-0.5">手動/自動切替可</div>
           </div>
-          <button onclick="toggleHeader()" id="header-toggle-btn" class="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300">▲</button>
+          <button type="button" onclick="toggleHeader()" id="header-toggle-btn" class="px-2 py-1 rounded bg-slate-800 text-xs text-slate-300">▲</button>
         </div>
       </div>
 
       <div id="header-body" class="mt-2.5 pt-2.5 border-t border-slate-800 space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2">
-            <label class="text-slate-400">予算(円):</label>
+            <label for="budget-input" class="text-slate-400">予算(円):</label>
             <input id="budget-input" type="number" step="100" min="600" value="3000" onchange="recalcAll()"
               class="w-24 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-right font-bold text-amber-300" />
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-slate-400">点数:</label>
+            <label for="points-range" class="text-slate-400">点数:</label>
             <input id="points-range" type="range" min="6" max="15" value="10" oninput="syncPointsLabel(); recalcAll();" class="w-24" />
             <span id="points-label" class="font-extrabold text-cyan-400 w-9 text-right">10点</span>
           </div>
@@ -50,7 +50,7 @@
     <!-- 選択中レースの概要＆確定結果 -->
     <div id="race-summary" class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
       <div>
-        <div id="race-title" class="text-sm font-extrabold">-- 1R</div>
+        <div id="race-title" class="text-sm font-extrabold">競輪 1R</div>
         <div id="race-meta" class="text-xs text-slate-400 mt-0.5">発走 --:--</div>
       </div>
       <div id="race-result-box" class="text-right">
@@ -62,13 +62,13 @@
     <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
       <div class="flex items-center justify-between">
         <h2 class="text-xs font-bold text-slate-200">出走表・並び（テキスト貼付で即反映）</h2>
-        <button onclick="applyPastedText()" class="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-xs font-bold">貼付反映</button>
+        <button type="button" onclick="applyPastedText()" class="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-xs font-bold">貼付反映</button>
       </div>
       <textarea id="paste-area" rows="2" placeholder="出走表テキストを貼り付けて「貼付反映」を押すと選手・得点が更新されます"
         class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200"></textarea>
 
       <div>
-        <label class="block text-[11px] text-slate-400 mb-1">ライン並び（例: 1-7-4 / 2-5 / 3-9-6）</label>
+        <label for="line-input" class="block text-[11px] text-slate-400 mb-1">ライン並び（例: 1-7-4 / 2-5 / 3-9-6）</label>
         <input id="line-input" type="text" value="1-7-4 / 2-5 / 3-9-6" oninput="recalcAll()"
           class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-cyan-300" />
       </div>
@@ -128,36 +128,51 @@
     }
 
     async function loadData() {
-      try {
-        const res = await fetch("./data.json?t=" + Date.now());
-        if (!res.ok) throw new Error("data.json 未生成");
-        appData = await res.json();
-
-        document.getElementById("date-title").textContent = appData.display_date || "本日開催";
-        document.getElementById("updated-at").textContent = "更新: " + (appData.updated_at || "");
-        const badge = document.getElementById("status-badge");
-        const count = (appData.venues || []).length;
-        badge.textContent = count > 0 ? `実データ取得済 (${count}場)` : "開催なし/取得待ち";
-      } catch (e) {
-        document.getElementById("date-title").textContent = "data.json 読込待ち";
-        document.getElementById("status-badge").textContent = "未取得";
-      }
+      currentPlayers = defaultPlayers();
       renderVenues();
       selectRace(0);
+
+      try {
+        const res = await fetch("./data.json?t=" + Date.now(), { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!json || typeof json !== "object") return;
+        appData = json;
+
+        if (appData.display_date) {
+          document.getElementById("date-title").textContent = appData.display_date;
+        }
+        if (appData.updated_at) {
+          document.getElementById("updated-at").textContent = "更新: " + appData.updated_at;
+        }
+        const badge = document.getElementById("status-badge");
+        const count = Array.isArray(appData.venues) ? appData.venues.length : 0;
+        if (count > 0) {
+          badge.textContent = `取得済 (${count}場)`;
+          badge.className = "text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-700";
+        } else {
+          badge.textContent = "データ空";
+        }
+        renderVenues();
+        selectRace(0);
+      } catch (e) {
+        // data.json がまだ無い・読めない場合でも画面は動かしたままにする
+      }
     }
 
     function renderVenues() {
       const box = document.getElementById("venue-tabs");
       box.innerHTML = "";
-      const venues = appData?.venues || [];
+      const venues = Array.isArray(appData?.venues) ? appData.venues : [];
       if (!venues.length) {
-        box.innerHTML = `<span class="text-xs text-slate-400">開催場データなし（Actions実行後に更新されます）</span>`;
+        box.innerHTML = `<span class="text-xs text-slate-400">開催場一覧は data.json 生成後に表示されます（出走表貼付・買い目計算は今すぐ利用可）</span>`;
         return;
       }
       venues.forEach((v, i) => {
         const active = i === vIdx;
         const btn = document.createElement("button");
-        btn.textContent = v.name;
+        btn.type = "button";
+        btn.textContent = v.name || `場${i + 1}`;
         btn.className = active
           ? "px-3 py-1.5 rounded-lg bg-cyan-500 text-slate-950 font-extrabold text-xs"
           : "px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs";
@@ -172,8 +187,8 @@
 
     function selectRace(index) {
       rIdx = index;
-      const venue = appData?.venues?.[vIdx];
-      const races = venue?.races || [];
+      const venue = Array.isArray(appData?.venues) ? appData.venues[vIdx] : null;
+      const races = Array.isArray(venue?.races) ? venue.races : [];
       const raceTabs = document.getElementById("race-tabs");
       raceTabs.innerHTML = "";
 
@@ -182,6 +197,7 @@
         const isSelected = i === rIdx;
         const isDone = rObj.status === "確定済";
         const btn = document.createElement("button");
+        btn.type = "button";
         btn.textContent = `${i + 1}R` + (isDone ? "✓" : "");
         btn.className = isSelected
           ? "py-1.5 rounded-lg bg-amber-400 text-slate-950 font-extrabold text-xs"
@@ -193,8 +209,8 @@
       }
 
       const cur = races[rIdx] || { r: rIdx + 1, start_time: "", status: "発売中", result_3tan: "", payout: "", players: [] };
-      document.getElementById("race-title").textContent = `${venue ? venue.name : "競輪"} ${cur.r}R`;
-      document.getElementById("race-meta").textContent = `発走 ${cur.start_time \vert{}\vert{} "--:--"} ／ 状態: ${cur.status}`;
+      document.getElementById("race-title").textContent = `${venue?.name || "競輪"} ${cur.r || (rIdx + 1)}R`;
+      document.getElementById("race-meta").textContent = `発走 ${cur.start_time || "--:--"} ／ 状態: ${cur.status || "発売中"}`;
 
       const resBox = document.getElementById("race-result-box");
       if (cur.status === "確定済" && cur.result_3tan) {
@@ -207,7 +223,7 @@
         resBox.innerHTML = `<span class="text-xs text-slate-400">未確定</span>`;
       }
 
-      currentPlayers = (cur.players && cur.players.length >= 3) ? cur.players : defaultPlayers();
+      currentPlayers = (Array.isArray(cur.players) && cur.players.length >= 3) ? cur.players : defaultPlayers();
       renderPlayers();
       recalcAll();
     }
@@ -313,7 +329,15 @@
       const allCars = currentPlayers.map(p => p.car);
       for (const grp of lineGroups) {
         if (grp.length >= 2) {
-          const c1 = `${grp[1]}-${grp[0]}-${allCars.find(x => !grp.includes(x)) \vert{}\vert{} grp[grp.length - 1]}`; if (!seen.has(c1)) { seen.add(c1); anaCombos.push(c1); } } } for (let i = allCars.length - 1; i >= 0; i--) { for (let j = 0; j < allCars.length; j++) { for (let k = 0; k < allCars.length; k++) { if (i === j \vert{}\vert{} j === k \vert{}\vert{} i === k) continue; const c = `${allCars[i]}-${allCars[j]}-${allCars[k]}`;
+          const c1 = `${grp[1]}-${grp[0]}-${allCars.find(x => !grp.includes(x)) || grp[grp.length - 1]}`;
+          if (!seen.has(c1)) { seen.add(c1); anaCombos.push(c1); }
+        }
+      }
+      for (let i = allCars.length - 1; i >= 0; i--) {
+        for (let j = 0; j < allCars.length; j++) {
+          for (let k = 0; k < allCars.length; k++) {
+            if (i === j || j === k || i === k) continue;
+            const c = `${allCars[i]}-${allCars[j]}-${allCars[k]}`;
             if (!seen.has(c)) { seen.add(c); anaCombos.push(c); }
           }
         }
@@ -344,4 +368,12 @@
       document.getElementById("ana-list").innerHTML = aPick.map((c, idx) => `
         <div class="flex items-center justify-between bg-slate-950/80 border border-rose-900/40 rounded px-2.5 py-1">
           <span class="font-extrabold text-rose-300">${c}</span>
-          <span class="font-mono text-slate-200
+          <span class="font-mono text-slate-200">${aAmounts[idx].toLocaleString()}円</span>
+        </div>
+      `).join("");
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
