@@ -1,11 +1,500 @@
 {
   "date": "2026/11/27",
-  "updatedAt": "2026-11-27 10:14:47 JST",
-  "source": "empty",
-  "count": 0,
+  "updatedAt": "2026-11-27 10:22:04 JST",
+  "source": "live",
+  "count": 7,
   "debug": [
-    "candidates:13",
-    "parsed:0"
+    "urls:13",
+    "0:競輪/1R/p=0/GIII企画レース特集",
+    "1:競輪/2R/p=0/REPORT",
+    "2:競輪/3R/p=0/グレードレース開催日程｜KEIRIN",
+    "3:競輪/4R/p=0/開催日程｜KEIRIN.JP",
+    "4:競輪/5R/p=0/ログインページ｜KEIRIN.JP"
   ],
-  "races": []
+  "races": [
+    {
+      "id": "today_久留米_9",
+      "date": "2026/11/27",
+      "venue": "久留米",
+      "raceNum": 9,
+      "title": "久留米 9R",
+      "lines": [
+        [
+          1,
+          5
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "players": [
+        {
+          "car": 1,
+          "name": "吉岡詩織",
+          "score": 85.2,
+          "style": "両",
+          "b": 32,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 2,
+          "name": "永禮美瑠",
+          "score": 84.8,
+          "style": "両",
+          "b": 26,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "神戸暖稀羽",
+          "score": 84.4,
+          "style": "両",
+          "b": 23,
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "car": 4,
+          "name": "北津留千羽",
+          "score": 84.0,
+          "style": "両",
+          "b": 20,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 5,
+          "name": "長澤彩",
+          "score": 83.6,
+          "style": "両",
+          "b": 0,
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "car": 6,
+          "name": "山本さくら",
+          "score": 83.2,
+          "style": "両",
+          "b": 25,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 7,
+          "name": "金田舞夏",
+          "score": 82.8,
+          "style": "両",
+          "b": 24,
+          "line": 0,
+          "pos": 1
+        }
+      ]
+    },
+    {
+      "id": "today_佐世保_12",
+      "date": "2026/11/27",
+      "venue": "佐世保",
+      "raceNum": 12,
+      "title": "佐世保 12R",
+      "lines": [
+        [
+          1,
+          6
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "players": [
+        {
+          "car": 1,
+          "name": "内田淳",
+          "score": 85.2,
+          "style": "逃",
+          "b": 1,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 2,
+          "name": "永田隼一",
+          "score": 84.8,
+          "style": "逃",
+          "b": 2,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "佐藤有輝",
+          "score": 84.4,
+          "style": "追",
+          "b": 4,
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "car": 4,
+          "name": "三浦綾",
+          "score": 84.0,
+          "style": "逃",
+          "b": 3,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 5,
+          "name": "長田彰人",
+          "score": 83.6,
+          "style": "追",
+          "b": 3,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 6,
+          "name": "清水広幸",
+          "score": 83.2,
+          "style": "追",
+          "b": 0,
+          "line": 1,
+          "pos": 2
+        }
+      ]
+    },
+    {
+      "id": "today_小松島_8",
+      "date": "2026/11/27",
+      "venue": "小松島",
+      "raceNum": 8,
+      "title": "小松島 8R",
+      "lines": [
+        [
+          1,
+          4
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "players": [
+        {
+          "car": 1,
+          "name": "下条未悠",
+          "score": 85.2,
+          "style": "両",
+          "b": 4,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 2,
+          "name": "日野博幸",
+          "score": 84.8,
+          "style": "逃",
+          "b": 2,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "吉野太晟",
+          "score": 84.4,
+          "style": "逃",
+          "b": 5,
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "car": 4,
+          "name": "在本直樹",
+          "score": 84.0,
+          "style": "両",
+          "b": 1,
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "car": 5,
+          "name": "田川辰二",
+          "score": 83.6,
+          "style": "追",
+          "b": 3,
+          "line": 0,
+          "pos": 1
+        }
+      ]
+    },
+    {
+      "id": "today_平塚_7",
+      "date": "2026/11/27",
+      "venue": "平塚",
+      "raceNum": 7,
+      "title": "平塚 7R",
+      "lines": [
+        [
+          2,
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ]
+      ],
+      "players": [
+        {
+          "car": 2,
+          "name": "高本和也",
+          "score": 84.8,
+          "style": "逃",
+          "b": 29,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "大瀬戸潤一郎",
+          "score": 84.4,
+          "style": "追",
+          "b": 1,
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "car": 4,
+          "name": "栗田万生",
+          "score": 84.0,
+          "style": "逃",
+          "b": 2,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 5,
+          "name": "牛田樹希斗",
+          "score": 83.6,
+          "style": "逃",
+          "b": 5,
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "car": 6,
+          "name": "上杉嘉槻",
+          "score": 83.2,
+          "style": "逃",
+          "b": 1,
+          "line": 0,
+          "pos": 1
+        }
+      ]
+    },
+    {
+      "id": "today_松戸_10",
+      "date": "2026/11/27",
+      "venue": "松戸",
+      "raceNum": 10,
+      "title": "松戸 10R",
+      "lines": [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "players": [
+        {
+          "car": 1,
+          "name": "大浦彩瑛",
+          "score": 85.2,
+          "style": "逃",
+          "b": 1,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 2,
+          "name": "磯村光舞",
+          "score": 84.8,
+          "style": "両",
+          "b": 3,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "石井貴子",
+          "score": 84.4,
+          "style": "逃",
+          "b": 3,
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "car": 4,
+          "name": "伊藤のぞみ",
+          "score": 84.0,
+          "style": "追",
+          "b": 4,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 5,
+          "name": "刈込奈那",
+          "score": 83.6,
+          "style": "逃",
+          "b": 6,
+          "line": 0,
+          "pos": 1
+        }
+      ]
+    },
+    {
+      "id": "today_松阪_11",
+      "date": "2026/11/27",
+      "venue": "松阪",
+      "raceNum": 11,
+      "title": "松阪 11R",
+      "lines": [
+        [
+          3,
+          2
+        ],
+        [
+          5,
+          4
+        ]
+      ],
+      "players": [
+        {
+          "car": 2,
+          "name": "田口裕一",
+          "score": 84.8,
+          "style": "追",
+          "b": 1,
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "car": 3,
+          "name": "田中会心",
+          "score": 84.4,
+          "style": "逃",
+          "b": 5,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 4,
+          "name": "岡崎祥伍",
+          "score": 84.0,
+          "style": "追",
+          "b": 2,
+          "line": 2,
+          "pos": 2
+        },
+        {
+          "car": 5,
+          "name": "川口聖翔",
+          "score": 83.6,
+          "style": "追",
+          "b": 5,
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "car": 6,
+          "name": "徳丸泰教",
+          "score": 83.2,
+          "style": "追",
+          "b": 1,
+          "line": 0,
+          "pos": 1
+        }
+      ]
+    },
+    {
+      "id": "today_福井_6",
+      "date": "2026/11/27",
+      "venue": "福井",
+      "raceNum": 6,
+      "title": "福井 6R",
+      "lines": [
+        [
+          2,
+          3
+        ],
+        [
+          6,
+          4
+        ]
+      ],
+      "players": [
+        {
+          "car": 2,
+          "name": "松田安綱",
+          "score": 84.8,
+          "style": "逃",
+          "b": 1,
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "car": 3,
+          "name": "山口聖矢",
+          "score": 84.4,
+          "style": "両",
+          "b": 1,
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "car": 4,
+          "name": "舘真成",
+          "score": 84.0,
+          "style": "両",
+          "b": 2,
+          "line": 2,
+          "pos": 2
+        },
+        {
+          "car": 5,
+          "name": "甲斐下智",
+          "score": 83.6,
+          "style": "追",
+          "b": 0,
+          "line": 0,
+          "pos": 1
+        },
+        {
+          "car": 6,
+          "name": "酒井拳蔵",
+          "score": 83.2,
+          "style": "両",
+          "b": 3,
+          "line": 2,
+          "pos": 1
+        }
+      ]
+    }
+  ]
 }
