@@ -1,0 +1,237 @@
+{
+  "updated_at": "2026-11-27 21:25:46 JST",
+  "display_date": "2026年11月27日(Fri)",
+  "status": "ok",
+  "venues": [
+    {
+      "code": "35",
+      "slug": "hiratsuka",
+      "name": "平塚",
+      "races": [
+        {
+          "r": 1,
+          "race_id": "352026112701",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 2,
+          "race_id": "352026112702",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 3,
+          "race_id": "352026112703",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 4,
+          "race_id": "352026112704",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 5,
+          "race_id": "352026112705",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 6,
+          "race_id": "352026112706",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 7,
+          "race_id": "352026112707",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 8,
+          "race_id": "352026112708",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 9,
+          "race_id": "352026112709",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 10,
+          "race_id": "352026112710",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 11,
+          "race_id": "352026112711",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 12,
+          "race_id": "352026112712",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        }
+      ]
+    },
+    {
+      "code": "85",
+      "slug": "sasebo",
+      "name": "佐世保",
+      "races": [
+        {
+          "r": 1,
+          "race_id": "852026112701",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 2,
+          "race_id": "852026112702",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 3,
+          "race_id": "852026112703",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 4,
+          "race_id": "852026112704",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 5,
+          "race_id": "852026112705",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 6,
+          "race_id": "852026112706",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 7,
+          "race_id": "852026112707",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 8,
+          "race_id": "852026112708",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 9,
+          "race_id": "852026112709",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 10,
+          "race_id": "852026112710",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 11,
+          "race_id": "852026112711",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        },
+        {
+          "r": 12,
+          "race_id": "852026112712",
+          "start_time": "",
+          "status": "発売中",
+          "result_3tan": "",
+          "payout": "",
+          "players": []
+        }
+      ]
+    }
+  ]
+}
