@@ -127,8 +127,8 @@ def scrape_day(browser, target_dt, suffix):
     races = []
     seen = set()
     candidate_urls = set()
+    debug_info = []
 
-    # 1. HTTPで高速にリンク収集
     for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
         html = fetch_http(seed)
         for h in re.findall(r'href=["\']([^"\']+)["\']', html):
@@ -138,7 +138,6 @@ def scrape_day(browser, target_dt, suffix):
             elif "keirin.jp" in full and ("syutsuba" in full or "race" in full):
                 candidate_urls.add(full)
 
-    # 2. Playwrightでトップ＆開催場ページからも追加収集
     page = browser.new_page()
     try:
         for seed in ["https://keirin.kdreams.jp/racecard/", f"https://keirin.jp/pc/top?date={date_str}"]:
@@ -155,7 +154,6 @@ def scrape_day(browser, target_dt, suffix):
             except Exception:
                 continue
 
-        # 開催場ページを開いてその日のレースURLを展開
         venue_seeds = [u for u in sorted(list(candidate_urls)) if "/racecard/" in u and date_str not in u][:15]
         for vu in venue_seeds:
             try:
@@ -169,12 +167,14 @@ def scrape_day(browser, target_dt, suffix):
             except Exception:
                 continue
 
-        # 各レースページから出走表を抽出
-        for ru in sorted(list(candidate_urls))[:100]:
+        sorted_urls = sorted(list(candidate_urls))[:30]
+        debug_info.append(f"urls:{len(sorted_urls)}")
+
+        for idx, ru in enumerate(sorted_urls):
             try:
                 page.goto(ru, timeout=20000, wait_until="domcontentloaded")
                 page.wait_for_timeout(500)
-                title = page.title()
+                title = re.sub(r'\s+', ' ', page.title() or "").strip()
                 rows = page.evaluate("""() => Array.from(document.querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td, th')).map(el => el.innerText))""")
                 if not rows:
                     rows = extract_rows_from_html(page.content())
@@ -184,28 +184,32 @@ def scrape_day(browser, target_dt, suffix):
                     m_code = re.search(r'(?:jorncd=|/racecard/)(\d{2})', ru)
                     venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
 
-                rnum_m = re.search(r'(\d{1,2})R', title) or re.search(r'(?:raceno=|r)(\d{1,2})', ru, re.I)
-                race_num = int(rnum_m.group(1)) if rnum_m else 0
-                if not (1 <= race_num <= 12):
+                rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(?:raceno=|r)(\d{1,2})', ru, re.I)
+                race_num = int(rnum_m.group(1)) if rnum_m else (idx + 1 if idx < 12 else 0)
+
+                players, lines = parse_players_from_html_or_rows(rows)
+                if idx < 5:
+                    debug_info.append(f"{idx}:{venue_name}/{race_num}R/p={len(players)}/{title[:18]}")
+
+                if not (1 <= race_num <= 12) or len(players) < 3:
                     continue
 
                 key = f"{venue_name}_{race_num}"
                 if key in seen:
                     continue
-
-                players, lines = parse_players_from_html_or_rows(rows)
-                if len(players) >= 4:
-                    seen.add(key)
-                    races.append({
-                        "id": f"{suffix}_{venue_name}_{race_num}",
-                        "date": disp_date,
-                        "venue": venue_name,
-                        "raceNum": race_num,
-                        "title": f"{venue_name} {race_num}R",
-                        "lines": lines,
-                        "players": players
-                    })
-            except Exception:
+                seen.add(key)
+                races.append({
+                    "id": f"{suffix}_{venue_name}_{race_num}",
+                    "date": disp_date,
+                    "venue": venue_name,
+                    "raceNum": race_num,
+                    "title": f"{venue_name} {race_num}R",
+                    "lines": lines,
+                    "players": players
+                })
+            except Exception as e:
+                if idx < 5:
+                    debug_info.append(f"{idx}:err={str(e)[:25]}")
                 continue
     finally:
         page.close()
@@ -216,7 +220,7 @@ def scrape_day(browser, target_dt, suffix):
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": [f"candidates:{len(candidate_urls)}", f"parsed:{len(races)}"],
+        "debug": debug_info,
         "races": races
     }
 
