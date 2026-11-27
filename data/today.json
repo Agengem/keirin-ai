@@ -1,7 +1,11 @@
 {
   "date": "2026/11/27",
-  "updatedAt": "2026-11-27 10:11:55 JST",
+  "updatedAt": "2026-11-27 10:14:47 JST",
   "source": "empty",
   "count": 0,
+  "debug": [
+    "candidates:13",
+    "parsed:0"
+  ],
   "races": []
 }
