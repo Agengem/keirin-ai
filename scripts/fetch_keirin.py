@@ -60,59 +60,46 @@ def parse_players_from_html(html):
 
     for cells in rows:
         cells = [re.sub(r'\s+', ' ', str(c)).strip() for c in cells if str(c).strip()]
-        if len(cells) < 3:
+        if len(cells) < 2:
             continue
 
         car = None
-        num_candidates = []
-        for c in cells[:4]:
-            if re.fullmatch(r'[1-9]', c):
-                num_candidates.append(int(c))
-        if len(num_candidates) >= 2:
-            car = num_candidates[1]
-        elif len(num_candidates) == 1:
-            car = num_candidates[0]
-
+        for c in cells[:3]:
+            m_car = re.search(r'\b([1-9])\b', c)
+            if m_car and len(c) <= 4:
+                car = int(m_car.group(1))
+                break
         if not car or any(p["car"] == car for p in players):
             continue
 
         joined = " ".join(cells)
-
-        name = ""
-        for c in cells:
-            if any(w in c for w in ["級", "班", "県", "府", "都", "道", "競輪", "車番", "選手", "得点", "脚質", "レース", "バンク", "予想", "平均", "勝率", "年齢", "期別"]):
-                continue
-            m_name = re.search(r'([\u4E00-\u9FFF]{1,4}\s*[\u4E00-\u9FFF]{1,4})', c)
-            if m_name:
-                cand = re.sub(r'\s+', '', m_name.group(1))
-                if 2 <= len(cand) <= 7:
-                    name = cand
-                    break
-
-        if not name:
-            continue
-
         sc_m = re.search(r'\b([5-9]\d\.\d{1,2}|1[0-2]\d\.\d{1,2})\b', joined)
         score = float(sc_m.group(1)) if sc_m else round(82.0 + (9 - car) * 0.4, 2)
-
-        style_m = re.search(r'(?:^|\s)(逃|両|追)(?:\s|$)', joined)
-        style = style_m.group(1) if style_m else "両"
-
+        style = next((c for c in cells if c in ["逃", "両", "追"]), "両")
         b_cnt = 0
-        for c in cells[4:]:
+        for c in cells[3:]:
             if re.fullmatch(r'\d{1,2}', c) and int(c) <= 35:
                 b_cnt = int(c)
                 break
 
-        players.append({
-            "car": car,
-            "name": name,
-            "score": score,
-            "style": style,
-            "b": b_cnt,
-            "line": 0,
-            "pos": 1
-        })
+        name = ""
+        for c in cells:
+            if re.search(r'[\u4E00-\u9FFF]{2,}', c):
+                if not any(w in c for w in ["級", "班", "県", "府", "都", "道", "競輪", "車番", "選手", "得点", "脚質", "レース", "バンク", "予想", "平均", "勝率"]):
+                    cleaned = re.sub(r'[0-9A-Za-z\(\)（）/・\s].*', '', c).strip()
+                    if 2 <= len(cleaned) <= 8:
+                        name = cleaned
+                        break
+        if name:
+            players.append({
+                "car": car,
+                "name": name,
+                "score": score,
+                "style": style,
+                "b": b_cnt,
+                "line": 0,
+                "pos": 1
+            })
 
     players.sort(key=lambda x: x["car"])
     lines = []
@@ -133,7 +120,7 @@ def parse_players_from_html(html):
                     p["line"] = l_idx + 1
                     p["pos"] = grp.index(p["car"]) + 1
 
-    return players, lines
+    return players, lines, rows
 
 
 def scrape_day_fast(target_dt, suffix):
@@ -157,11 +144,12 @@ def scrape_day_fast(target_dt, suffix):
                 if date_str in full:
                     base_urls.add(full)
 
+    # 全8開催場のURLから対象日のURLを生成＆ページ内のリンクも回収
     for vp in sorted(list(venue_pages))[:30]:
-        m_v = re.match(r'(https?://[^/]+/[^/]+/racecard/(\d{2}))\d{8}(\d{4,6})/?$', vp.rstrip("/"))
-        if m_v:
-            base_urls.add(f"{m_v.group(1)}{date_str}010001/")
-            base_urls.add(f"{m_v.group(1)}{date_str}{m_v.group(3)}/")
+        # 例: https://keirin.kdreams.jp/hiratsuka/racecard/3520261126010000/ -> 日付部分を date_str に置換
+        m_sub = re.match(r'(https?://[^/]+/[^/]+/racecard/\d{2})\d{8}(\d{4,8})/?$', vp.rstrip("/"))
+        if m_sub:
+            base_urls.add(f"{m_sub.group(1)}{date_str}{m_sub.group(2)}/")
 
         vh = fetch_http(vp)
         for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
@@ -169,6 +157,7 @@ def scrape_day_fast(target_dt, suffix):
             if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,22}/?$', full):
                 base_urls.add(full)
 
+    # 見つかった全開催ベースURLの末尾2桁を 01〜12 に展開
     race_urls = set()
     for bu in base_urls:
         clean = bu.rstrip("/")
@@ -179,12 +168,14 @@ def scrape_day_fast(target_dt, suffix):
         else:
             race_urls.add(clean + "/")
 
+    sample_row_dump = []
+
     def process_race(ru):
         if date_str not in ru:
-            return None
+            return None, None
         r_html = fetch_http(ru)
         if not r_html:
-            return None
+            return None, None
         title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
         title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
 
@@ -196,24 +187,28 @@ def scrape_day_fast(target_dt, suffix):
         rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
         race_num = int(rnum_m.group(1)) if rnum_m else 0
         if not (1 <= race_num <= 12):
-            return None
+            return None, None
 
-        players, lines = parse_players_from_html(r_html)
-        if len(players) < 4:
-            return None
+        players, lines, rows = parse_players_from_html(r_html)
+        if len(players) < 3:
+            sample = ["|".join([re.sub(r'\s+', ' ', x).strip() for x in r if x.strip()])[:60] for r in rows[:15] if len(r) >= 3]
+            return None, f"{venue_name}{race_num}R:{sample[:2]}"
+
         return {
             "venue": venue_name,
             "raceNum": race_num,
             "title": f"{venue_name} {race_num}R",
             "lines": lines,
             "players": players
-        }
+        }, None
 
     sorted_candidates = sorted(list(race_urls))[:160]
     with ThreadPoolExecutor(max_workers=16) as ex:
         futures = [ex.submit(process_race, u) for u in sorted_candidates]
         for fut in as_completed(futures):
-            item = fut.result()
+            item, dump = fut.result()
+            if dump and len(sample_row_dump) < 4:
+                sample_row_dump.append(dump)
             if not item:
                 continue
             key = f"{item['venue']}_{item['raceNum']}"
@@ -240,7 +235,8 @@ def scrape_day_fast(target_dt, suffix):
             f"venues:{len(venue_pages)}",
             f"base:{len(base_urls)}",
             f"expanded:{len(sorted_candidates)}",
-            f"parsed:{len(races)}"
+            f"parsed:{len(races)}",
+            *sample_row_dump
         ],
         "races": races
     }
