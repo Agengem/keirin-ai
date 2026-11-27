@@ -2,6 +2,7 @@ import json
 import os
 import re
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
 
@@ -126,85 +127,94 @@ def scrape_day_fast(target_dt, suffix):
     races = []
     seen = set()
     venue_pages = set()
+    base_urls = set()
+
+    seeds = [
+        "https://keirin.kdreams.jp/racecard/",
+        f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
+    ]
+    for s in seeds:
+        html = fetch_http(s)
+        for h in re.findall(r'href=["\']([^"\']+)["\']', html):
+            full = urljoin(s, h).split("#")[0].split("?")[0]
+            if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,20}/?$', full):
+                venue_pages.add(full)
+                if date_str in full:
+                    base_urls.add(full)
+
+    for vp in sorted(list(venue_pages))[:30]:
+        vh = fetch_http(vp)
+        for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
+            full = urljoin(vp, h).split("#")[0].split("?")[0]
+            if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{10,20}/?$', full):
+                base_urls.add(full)
+
+    # 見つかった全開催URLの末尾2桁を 01〜12 に展開（末尾00対策）
     race_urls = set()
-    debug_info = []
-
-    try:
-        seeds = [
-            "https://keirin.kdreams.jp/racecard/",
-            f"https://keirin.kdreams.jp/schedule/{target_dt.strftime('%Y/%m')}/"
-        ]
-        for s in seeds:
-            html = fetch_http(s)
-            for h in re.findall(r'href=["\']([^"\']+)["\']', html):
-                full = urljoin(s, h).split("#")[0].split("?")[0]
-                if re.search(r'keirin\.kdreams\.jp/[a-z]+/racecard/\d{8,18}/?$', full):
-                    venue_pages.add(full)
-                    if date_str in full and re.search(r'/racecard/\d{12,18}/?$', full):
-                        race_urls.add(full)
-
-        for vp in sorted(list(venue_pages))[:25]:
-            vh = fetch_http(vp)
-            for h in re.findall(r'href=["\']([^"\']+)["\']', vh):
-                full = urljoin(vp, h).split("#")[0].split("?")[0]
-                if "/racecard/" in full and date_str in full and re.search(r'/racecard/\d{12,18}/?$', full):
-                    race_urls.add(full)
-
-        prefixes = set()
-        for ru in list(race_urls):
-            m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{12,14})\d{2}/?$', ru)
-            if m:
-                prefixes.add(m.group(1))
-        for pref in list(prefixes)[:15]:
+    for bu in base_urls:
+        clean = bu.rstrip("/")
+        race_urls.add(clean + "/")
+        m = re.match(r'(https://keirin\.kdreams\.jp/[a-z]+/racecard/\d{10,18})\d{2}$', clean)
+        if m:
+            prefix = m.group(1)
             for r_no in range(1, 13):
-                race_urls.add(f"{pref}{r_no:02d}/")
+                race_urls.add(f"{prefix}{r_no:02d}/")
 
-        debug_info = [f"venues:{len(venue_pages)}", f"urls:{len(race_urls)}"]
+    def process_race(ru):
+        r_html = fetch_http(ru)
+        if not r_html:
+            return None
+        title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
+        title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
 
-        for ru in sorted(list(race_urls))[:120]:
-            r_html = fetch_http(ru)
-            if not r_html:
+        venue_name = next((v for v in VENUES.values() if v in title), None)
+        if not venue_name:
+            m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
+            venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
+
+        rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
+        race_num = int(rnum_m.group(1)) if rnum_m else 0
+        if not (1 <= race_num <= 12):
+            return None
+
+        players, lines = parse_players_from_rows(extract_rows_from_html(r_html))
+        if len(players) < 4:
+            return None
+        return {
+            "venue": venue_name,
+            "raceNum": race_num,
+            "title": f"{venue_name} {race_num}R",
+            "lines": lines,
+            "players": players
+        }
+
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        futures = [ex.submit(process_race, u) for u in sorted(list(race_urls))]
+        for fut in as_completed(futures):
+            item = fut.result()
+            if not item:
                 continue
-            title_m = re.search(r'<title>(.*?)</title>', r_html, re.S)
-            title = re.sub(r'\s+', ' ', title_m.group(1)).strip() if title_m else ""
-
-            venue_name = next((v for v in VENUES.values() if v in title), None)
-            if not venue_name:
-                m_code = re.search(r'/racecard/(\d{2})\d{8,}', ru)
-                venue_name = VENUES[m_code.group(1)] if (m_code and m_code.group(1) in VENUES) else "競輪"
-
-            rnum_m = re.search(r'(\d{1,2})[RＲ]', title) or re.search(r'(\d{2})/?$', ru)
-            race_num = int(rnum_m.group(1)) if rnum_m else 0
-            if not (1 <= race_num <= 12):
-                continue
-
-            key = f"{venue_name}_{race_num}"
+            key = f"{item['venue']}_{item['raceNum']}"
             if key in seen:
                 continue
-
-            players, lines = parse_players_from_rows(extract_rows_from_html(r_html))
-            if len(players) >= 4:
-                seen.add(key)
-                races.append({
-                    "id": f"{suffix}_{venue_name}_{race_num}",
-                    "date": disp_date,
-                    "venue": venue_name,
-                    "raceNum": race_num,
-                    "title": f"{venue_name} {race_num}R",
-                    "lines": lines,
-                    "players": players
-                })
-    except Exception as e:
-        debug_info.append(f"err:{str(e)[:40]}")
+            seen.add(key)
+            races.append({
+                "id": f"{suffix}_{item['venue']}_{item['raceNum']}",
+                "date": disp_date,
+                "venue": item["venue"],
+                "raceNum": item["raceNum"],
+                "title": item["title"],
+                "lines": item["lines"],
+                "players": item["players"]
+            })
 
     races.sort(key=lambda x: (x["venue"], x["raceNum"]))
-    debug_info.append(f"parsed:{len(races)}")
     return {
         "date": disp_date,
         "updatedAt": now_jst.strftime("%Y-%m-%d %H:%M:%S JST"),
         "source": "live" if races else "empty",
         "count": len(races),
-        "debug": debug_info,
+        "debug": [f"venues:{len(venue_pages)}", f"expanded:{len(race_urls)}", f"parsed:{len(races)}"],
         "races": races
     }
 
